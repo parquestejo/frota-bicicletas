@@ -1,4 +1,4 @@
-export type Role='admin'|'funcionario';
+export type Role='admin'|'funcionario'|'manutencao';
 export type BikeStatus='Disponível'|'Alugada'|'Avariada'|'Em manutenção'|'Indisponível';
 export interface User {id:string; full_name:string; username:string; role:Role; usual_kiosk_id?:string; active:boolean; last_login_at?:string}
 export interface Kiosk {id:string; name:string; allows_rentals?:boolean}

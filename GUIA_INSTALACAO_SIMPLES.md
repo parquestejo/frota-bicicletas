@@ -44,6 +44,7 @@ Execute três ficheiros pela ordem indicada:
 5. Depois da mensagem de sucesso, abra uma nova query e repita com `supabase/migrations/002_operations.sql`.
 6. Abra uma nova query e execute também `supabase/migrations/003_bike_types.sql`.
 7. Por fim, execute `supabase/migrations/004_support_locations.sql`.
+8. Execute também `supabase/migrations/005_maintenance_role.sql`.
 6. Abra uma terceira query e repita com `supabase/seed.sql`.
 
 Se surgir uma mensagem vermelha, pare e guarde uma captura do erro. Não execute os ficheiros repetidamente.
