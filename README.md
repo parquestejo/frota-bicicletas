@@ -51,6 +51,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
 2. Execute, por ordem:
    - `supabase/migrations/001_initial.sql`
    - `supabase/migrations/002_operations.sql`
+   - `supabase/migrations/003_bike_types.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
