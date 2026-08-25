@@ -31,7 +31,7 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 ## Funcionalidades implementadas
 
 - Autenticação exclusiva por nome de utilizador e palavra-passe, sem email.
-- PBKDF2-SHA-256 com salt individual e 310.000 iterações; sessões opacas armazenadas por hash.
+- PBKDF2-SHA-256 com salt individual e 100.000 iterações, o limite suportado pelo runtime do Cloudflare; sessões opacas armazenadas por hash.
 - Cookies `HttpOnly`, `Secure` e `SameSite=Strict`, proteção CSRF e limitação a cinco tentativas em 15 minutos.
 - Perfis Administrador e Funcionário, validados no backend.
 - Dashboard com estados reais, distribuição por quiosque, alugueres em aberto, devoluções recentes e avarias pendentes.
