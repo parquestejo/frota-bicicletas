@@ -43,6 +43,7 @@ Execute três ficheiros pela ordem indicada:
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
 5. Depois da mensagem de sucesso, abra uma nova query e repita com `supabase/migrations/002_operations.sql`.
 6. Abra uma nova query e execute também `supabase/migrations/003_bike_types.sql`.
+7. Por fim, execute `supabase/migrations/004_support_locations.sql`.
 6. Abra uma terceira query e repita com `supabase/seed.sql`.
 
 Se surgir uma mensagem vermelha, pare e guarde uma captura do erro. Não execute os ficheiros repetidamente.
