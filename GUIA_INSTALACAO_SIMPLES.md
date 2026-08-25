@@ -131,7 +131,7 @@ Para gerar cada um dos dois códigos aleatórios no Windows:
    - o `BOOTSTRAP_TOKEN` no código temporário;
    - o nome completo do administrador;
    - um nome de utilizador;
-   - uma palavra-passe com pelo menos 12 caracteres.
+   - uma palavra-passe com pelo menos 6 caracteres.
 4. Clique em **Criar administrador**.
 5. Volte ao endereço principal e confirme que consegue entrar.
 
