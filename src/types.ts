@@ -1,0 +1,8 @@
+export type Role='admin'|'funcionario';
+export type BikeStatus='Disponível'|'Alugada'|'Avariada'|'Em manutenção'|'Indisponível';
+export interface User {id:string; full_name:string; username:string; role:Role; usual_kiosk_id?:string; active:boolean; last_login_at?:string}
+export interface Kiosk {id:string; name:string}
+export interface Bike {id:string; code:string; model:string; photo_url?:string; kiosk_id:string; status:BikeStatus; notes?:string; active:boolean; kiosk?:Kiosk; created_at:string; updated_at:string}
+export interface RentalItem {id:string; bike_id:string; returned_at?:string; anomaly:boolean; anomaly_description?:string; bike?:Bike}
+export interface Rental {id:string; reference:string; customer_ref:string; start_kiosk_id:string; status:'Em aberto'|'Concluído'; started_at:string; returned_at?:string; items:RentalItem[]; start_kiosk?:Kiosk; started_by_user?:User}
+export interface Fault {id:string; bike_id:string; bike?:Bike; origin:string; category:string; description:string; severity:string; usable:boolean; status:string; created_at:string; notes?:string}
