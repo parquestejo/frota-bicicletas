@@ -1,0 +1,4 @@
+.brand-logo{display:block;object-fit:contain}
+.login-logo{width:220px;max-width:75%;height:auto;margin:0 0 1.4rem}
+.header-logo{width:125px;height:42px}
+@media(max-width:800px){.header-logo{width:108px;height:36px}}
