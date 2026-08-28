@@ -27,6 +27,7 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 | `maintenance_interventions` | Uma ou várias intervenções por avaria |
 | `audit_log` | Registo imutável das ações críticas |
 | `login_attempts` | Limitação de tentativas repetidas de autenticação |
+| `daily_closures` | Fechos diários, totais automáticos, receita declarada e referência ao talão privado |
 
 ## Funcionalidades implementadas
 
@@ -40,6 +41,8 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 - Devoluções parciais, mudança de quiosque e criação automática de avaria.
 - Avarias, passagem para manutenção e conclusão com escolha explícita do estado final.
 - Histórico de estados e auditoria das ações críticas.
+- Fecho diário integrado, com vigilante e quiosque pré-preenchidos, contagem automática de alugueres e bicicletas por tipologia, rascunho, submissão, talão privado e observações.
+- Consulta global, filtros, exportação CSV e reabertura de fechos para administradores.
 - Interface responsiva e em português de Portugal.
 - Seed com os dois quiosques e bicicletas 001–020.
 
@@ -54,6 +57,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/003_bike_types.sql`
    - `supabase/migrations/004_support_locations.sql`
    - `supabase/migrations/005_maintenance_role.sql`
+   - `supabase/migrations/006_daily_closures.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -91,7 +95,7 @@ Os planos gratuitos eram adequados à arquitetura à data de preparação, mas o
 
 ## Fotografias e documentos
 
-As colunas para URLs de fotografias e anexos estão incluídas. Para ativar uploads, crie buckets privados no Supabase Storage e acrescente endpoints autenticados na API para gerar/receber objetos. Não torne os buckets públicos nem exponha a chave administrativa. Esta versão mantém os campos preparados, mas não inclui o fluxo de upload para evitar configuração insegura por omissão.
+Os talões de fecho diário são guardados num bucket privado do Supabase Storage, criado pela migração `006_daily_closures.sql`. O acesso é sempre efetuado através da API autenticada; o bucket não deve ser tornado público.
 
 ## Backup e recuperação
 
@@ -129,7 +133,7 @@ Os testes cobrem autenticação/conta inativa, permissões, indisponibilidade, d
 
 ## Limitações conhecidas
 
-- O fluxo visual de anexar fotografias/documentos e o botão de anonimização estão preparados no modelo, mas não expostos nesta primeira interface.
+- O upload privado está implementado para os talões de fecho diário; outros anexos continuam sem interface própria.
 - O registo de intervenções dispõe da tabela completa, mas a interface inicial atualiza o estado da ocorrência; um formulário detalhado de intervenção é evolução imediata recomendada.
 - Os filtros avançados por data/funcionário estão representados nos dados, mas a interface inicial privilegia pesquisa operacional simples.
 - Não existe modo offline. A aplicação depende de ligação à internet e dos limites gratuitos dos fornecedores.
@@ -142,5 +146,5 @@ Os testes cobrem autenticação/conta inativa, permissões, indisponibilidade, d
 - Formulário completo para intervenções e custos de manutenção.
 - Anonimização automática por prazo de retenção definido.
 - Exportações CSV/PDF e indicadores estatísticos.
-- Integração com o formulário externo, notificações e reservas.
+- Notificações externas e reservas.
 - Migração para servidor próprio mantendo PostgreSQL e a mesma API.

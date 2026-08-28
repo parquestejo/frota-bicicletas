@@ -35,7 +35,7 @@ Não introduza dados reais antes de terminar os testes finais deste guia.
 
 ### Criar as tabelas
 
-Execute três ficheiros pela ordem indicada:
+Execute os ficheiros pela ordem indicada:
 
 1. No menu esquerdo, entre em **SQL Editor** e clique em **New query**.
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
@@ -45,7 +45,8 @@ Execute três ficheiros pela ordem indicada:
 6. Abra uma nova query e execute também `supabase/migrations/003_bike_types.sql`.
 7. Por fim, execute `supabase/migrations/004_support_locations.sql`.
 8. Execute também `supabase/migrations/005_maintenance_role.sql`.
-6. Abra uma terceira query e repita com `supabase/seed.sql`.
+9. Execute `supabase/migrations/006_daily_closures.sql`, que cria os fechos diários e o armazenamento privado dos talões.
+10. Abra uma nova query e execute `supabase/seed.sql`.
 
 Se surgir uma mensagem vermelha, pare e guarde uma captura do erro. Não execute os ficheiros repetidamente.
 
@@ -156,6 +157,8 @@ Antes de inserir dados reais:
 6. Devolva a segunda com uma anomalia.
 7. Confirme que passa para **Avariada** e deixa de poder ser alugada.
 8. Desative o funcionário de teste e confirme que deixa de conseguir entrar.
+9. Entre com o funcionário, abra **Fecho diário**, confirme os totais automáticos, anexe um talão de teste e submeta.
+10. Entre como administrador, confirme que consegue consultar, exportar e reabrir o fecho.
 
 ## O que nunca deve fazer
 
