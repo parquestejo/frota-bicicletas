@@ -7,6 +7,7 @@ import type {
   Fault,
   Kiosk,
   Rental,
+  RentalDiscrepancy,
   RentalItem,
   User,
 } from "./types";
@@ -1023,6 +1024,160 @@ export function BikeDetail({ user }: { user: User }) {
     </>
   );
 }
+function RentalCorrection({
+  rental,
+  availableBikes,
+  onSaved,
+}: {
+  rental: Rental;
+  availableBikes: Bike[];
+  onSaved: () => void;
+}) {
+  const [open, setOpen] = useState(false),
+    [bikeId, setBikeId] = useState(""),
+    [showDiscrepancy, setShowDiscrepancy] = useState(false),
+    [bikeCode, setBikeCode] = useState(""),
+    [description, setDescription] = useState(""),
+    [busy, setBusy] = useState(false);
+  const choices = availableBikes.filter(
+    (b) => b.kiosk_id === rental.start_kiosk_id,
+  );
+  async function addBike() {
+    if (!bikeId) return;
+    setBusy(true);
+    try {
+      await post(`/rentals/${rental.id}/add-bike`, { bike_id: bikeId });
+      setBikeId("");
+      onSaved();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function removeBike(item: RentalItem) {
+    if (!confirm(`Remover a bicicleta ${item.bike?.code} deste aluguer?`))
+      return;
+    setBusy(true);
+    try {
+      await post(`/rentals/${rental.id}/remove-bike`, {
+        rental_item_id: item.id,
+      });
+      onSaved();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function report() {
+    if (!bikeCode.trim() || !description.trim()) return;
+    setBusy(true);
+    try {
+      await post(`/rentals/${rental.id}/discrepancies`, {
+        bike_code: bikeCode,
+        description,
+      });
+      setBikeCode("");
+      setDescription("");
+      setShowDiscrepancy(false);
+      alert("Discrepância comunicada ao administrador.");
+      onSaved();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="rental-correction">
+      <button className="secondary full" onClick={() => setOpen(!open)}>
+        {open ? "Fechar correção" : "Corrigir aluguer"}
+      </button>
+      {open && (
+        <div className="correction-panel">
+          <h4>Adicionar bicicleta esquecida</h4>
+          <div className="correction-add">
+            <select value={bikeId} onChange={(e) => setBikeId(e.target.value)}>
+              <option value="">Selecionar bicicleta disponível…</option>
+              {choices.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.code} · {b.model}
+                </option>
+              ))}
+            </select>
+            <button
+              className="primary"
+              disabled={!bikeId || busy}
+              onClick={addBike}
+            >
+              Adicionar
+            </button>
+          </div>
+          <h4>Bicicletas deste aluguer</h4>
+          {rental.items
+            .filter((i) => !i.returned_at)
+            .map((i) => (
+              <div className="row" key={i.id}>
+                <span>
+                  <b>{i.bike?.code}</b> {i.bike?.model}
+                </span>
+                <button
+                  className="text danger-text"
+                  disabled={
+                    busy ||
+                    rental.items.filter((x) => !x.returned_at).length <= 1
+                  }
+                  title={
+                    rental.items.filter((x) => !x.returned_at).length <= 1
+                      ? "Não é possível remover a última bicicleta."
+                      : ""
+                  }
+                  onClick={() => removeBike(i)}
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
+          <button
+            className="text discrepancy-toggle"
+            onClick={() => setShowDiscrepancy(!showDiscrepancy)}
+          >
+            A bicicleta não aparece ou os dados estão errados?
+          </button>
+          {showDiscrepancy && (
+            <div className="discrepancy-form">
+              <label>
+                Código da bicicleta
+                <input
+                  value={bikeCode}
+                  placeholder="Ex.: E007"
+                  onChange={(e) => setBikeCode(e.target.value.toUpperCase())}
+                />
+              </label>
+              <label>
+                O que está errado?
+                <textarea
+                  value={description}
+                  placeholder="Ex.: a bicicleta está no quiosque, mas aparece como alugada."
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </label>
+              <button
+                className="primary"
+                disabled={!bikeCode.trim() || !description.trim() || busy}
+                onClick={report}
+              >
+                Comunicar discrepância
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Rentals({ user }: { user: User }) {
   const [refresh, setRefresh] = useState(0),
     [dateFrom, setDateFrom] = useState(""),
@@ -1037,6 +1192,7 @@ export function Rentals({ user }: { user: User }) {
     rentals: Rental[];
     available_bikes: Bike[];
     kiosks: Kiosk[];
+    discrepancies: RentalDiscrepancy[];
   }>("/rentals", refresh);
   const visibleRentals = (data?.rentals || []).filter((r) =>
     inDateRange(r.started_at, dateFrom, dateTo),
@@ -1219,6 +1375,11 @@ export function Rentals({ user }: { user: User }) {
               <small className="block-meta">
                 Registado por: {r.started_by_user?.full_name || "—"}
               </small>
+              <RentalCorrection
+                rental={r}
+                availableBikes={data?.available_bikes || []}
+                onSaved={() => setRefresh((x) => x + 1)}
+              />
               <button
                 className="primary full"
                 onClick={() => {
@@ -1231,6 +1392,49 @@ export function Rentals({ user }: { user: User }) {
             </article>
           ))}
       </div>
+      {(data?.discrepancies || []).some((d) => d.status === "Pendente") && (
+        <section className="card discrepancy-list">
+          <h2>Discrepâncias pendentes</h2>
+          <p className="muted">
+            Situações em que uma bicicleta não estava disponível ou apresentava
+            dados incorretos no sistema.
+          </p>
+          {(data?.discrepancies || [])
+            .filter((d) => d.status === "Pendente")
+            .map((d) => (
+              <div className="discrepancy-item" key={d.id}>
+                <div>
+                  <b>{d.bike_code}</b> · {d.rental?.reference}
+                  <p>{d.description}</p>
+                  <small>
+                    {fmt(d.created_at)} · {d.created_by_user?.full_name || "—"}
+                  </small>
+                </div>
+                {user.role === "admin" && (
+                  <button
+                    className="secondary"
+                    onClick={async () => {
+                      const resolution = prompt(
+                        "Descreva como a discrepância foi resolvida:",
+                      );
+                      if (!resolution?.trim()) return;
+                      try {
+                        await patch(`/rental-discrepancies/${d.id}/resolve`, {
+                          resolution,
+                        });
+                        setRefresh((x) => x + 1);
+                      } catch (e) {
+                        alert((e as Error).message);
+                      }
+                    }}
+                  >
+                    Marcar como resolvida
+                  </button>
+                )}
+              </div>
+            ))}
+        </section>
+      )}
       <h2>Concluídos</h2>
       <div className="table-wrap">
         <table>

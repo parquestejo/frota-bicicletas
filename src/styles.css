@@ -354,6 +354,50 @@ th {
 .return-box .title {
   margin-bottom: 0.5rem;
 }
+.rental-correction {
+  margin-top: 0.75rem;
+}
+.correction-panel {
+  margin-top: 0.65rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #faf9f6;
+}
+.correction-panel h4 {
+  margin: 0.8rem 0 0.4rem;
+}
+.correction-add {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+.discrepancy-toggle {
+  margin-top: 0.8rem;
+}
+.discrepancy-form {
+  margin-top: 0.6rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line);
+}
+.danger-text {
+  color: #9d1c1c;
+}
+.discrepancy-list {
+  margin: 1.25rem 0;
+  border-left: 6px solid var(--yellow);
+}
+.discrepancy-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--line);
+}
+.discrepancy-item p {
+  margin: 0.35rem 0;
+}
 .profile-form {
   max-width: 560px;
 }
@@ -441,6 +485,13 @@ th {
   .inline-edit {
     grid-template-columns: 1fr;
     min-width: 210px;
+  }
+  .correction-add {
+    grid-template-columns: 1fr;
+  }
+  .discrepancy-item {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .login {
     background: linear-gradient(160deg, #353635 0 42%, #e8a328 42%);

@@ -46,7 +46,8 @@ Execute os ficheiros pela ordem indicada:
 7. Por fim, execute `supabase/migrations/004_support_locations.sql`.
 8. Execute também `supabase/migrations/005_maintenance_role.sql`.
 9. Execute `supabase/migrations/006_daily_closures.sql`, que cria os fechos diários e o armazenamento privado dos talões.
-10. Abra uma nova query e execute `supabase/seed.sql`.
+10. Execute `supabase/migrations/007_rental_corrections.sql`, que permite corrigir alugueres em aberto e comunicar discrepâncias.
+11. Abra uma nova query e execute `supabase/seed.sql`.
 
 Se surgir uma mensagem vermelha, pare e guarde uma captura do erro. Não execute os ficheiros repetidamente.
 

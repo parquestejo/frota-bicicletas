@@ -103,3 +103,16 @@ export interface DailyClosure {
   kiosk?: Kiosk;
   user?: User;
 }
+export interface RentalDiscrepancy {
+  id: string;
+  rental_id: string;
+  bike_code: string;
+  description: string;
+  status: "Pendente" | "Resolvida";
+  created_at: string;
+  resolved_at?: string;
+  resolution?: string;
+  created_by_user?: User;
+  resolved_by_user?: User;
+  rental?: Rental;
+}
