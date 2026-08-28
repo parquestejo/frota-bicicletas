@@ -242,7 +242,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204 });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.4.0",
+        version: "1.4.1",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -438,8 +438,12 @@ export const onRequest: PagesFunction<Env> = async ({
         })),
         open_rentals: ctx.user.role === "manutencao" ? 0 : rentals.length,
         daily_closure: dailyClosure[0] || null,
-        pending_faults: faults.length,
-        faults: faults.map((f: any) => ({ ...f, bike_code: f.bikes?.code })),
+        pending_faults:
+          ctx.user.role === "funcionario" ? 0 : faults.length,
+        faults:
+          ctx.user.role === "funcionario"
+            ? []
+            : faults.map((f: any) => ({ ...f, bike_code: f.bikes?.code })),
         recent_returns:
           ctx.user.role === "manutencao"
             ? []
@@ -828,7 +832,16 @@ export const onRequest: PagesFunction<Env> = async ({
       });
       return json(result);
     }
+    if (route === "/faults/report-options" && request.method === "GET") {
+      const bikes = await db(
+        ctx,
+        "bikes?active=eq.true&select=id,code,model,kiosk_id&order=code",
+      );
+      return json({ bikes });
+    }
     if (route === "/faults" && request.method === "GET") {
+      if (!['admin','manutencao'].includes(ctx.user.role))
+        return err("Acesso reservado a administradores e manutenção.", 403);
       const [faults, bikes] = await Promise.all([
         db(
           ctx,
@@ -857,6 +870,8 @@ export const onRequest: PagesFunction<Env> = async ({
       return json(rows, 201);
     }
     if (parts[0] === "faults" && parts[1] && request.method === "PATCH") {
+      if (!["admin", "manutencao"].includes(ctx.user.role))
+        return err("Acesso reservado a administradores e manutenção.", 403);
       const b = await body(request);
       const result = await db(ctx, "rpc/update_fault", {
         method: "POST",

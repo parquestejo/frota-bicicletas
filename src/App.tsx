@@ -14,6 +14,7 @@ import {
   Fleet,
   Rentals,
   Faults,
+  FaultReport,
   Profile,
   Reports,
   Users,
@@ -181,7 +182,6 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
   const links = [
     ["/", "Dashboard"],
     ["/frota", "Frota"],
-    ["/avarias", "Avarias e manutenção"],
     ["/perfil", "O meu perfil"],
   ];
   if (user.role !== "manutencao")
@@ -191,6 +191,8 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
       ["/alugueres", "Alugueres"],
       ["/fecho-diario", "Fecho diário"],
     );
+  if (user.role !== "funcionario")
+    links.splice(links.length - 1, 0, ["/avarias", "Avarias e manutenção"]);
   if (user.role === "admin")
     links.push(
       ["/relatorios", "Relatórios"],
@@ -263,7 +265,13 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
               )
             }
           />
-          <Route path="/avarias" element={<Faults />} />
+          <Route path="/comunicar-avaria" element={<FaultReport />} />
+          <Route
+            path="/avarias"
+            element={
+              user.role === "funcionario" ? <Navigate to="/" /> : <Faults />
+            }
+          />
           <Route path="/perfil" element={<Profile user={user} />} />
           <Route
             path="/relatorios"

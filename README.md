@@ -41,6 +41,7 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 - Aluguer de uma ou várias bicicletas, transacional e sem campos financeiros.
 - Devoluções parciais, mudança de quiosque e criação automática de avaria.
 - Avarias, passagem para manutenção e conclusão com escolha explícita do estado final.
+- Funcionários podem comunicar uma avaria sem consultar ocorrências, reparações ou histórico de manutenção; a gestão fica reservada a administradores e manutenção.
 - Histórico de estados e auditoria das ações críticas.
 - Fecho diário integrado, com vigilante e quiosque pré-preenchidos, contagem automática de alugueres e bicicletas por tipologia, rascunho, submissão, talão privado e observações.
 - Consulta global, filtros, exportação CSV e reabertura de fechos para administradores.
