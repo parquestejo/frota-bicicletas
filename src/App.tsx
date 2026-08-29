@@ -12,7 +12,6 @@ import {
   BikeDetail,
   Dashboard,
   Fleet,
-  NewRental,
   Rentals,
   Faults,
   FaultReport,
@@ -20,6 +19,7 @@ import {
   Reports,
   Users,
 } from "./pages";
+import { NewRental } from "./NewRental";
 import { Activity } from "./Activity";
 import { DailyClosures } from "./DailyClosures";
 

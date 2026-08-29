@@ -50,6 +50,7 @@ Execute os ficheiros pela ordem indicada:
 11. Execute `supabase/migrations/008_children_and_accessories.sql`, que acrescenta bicicletas infantis e acessórios ao inventário.
 12. Abra uma nova query e execute `supabase/seed.sql`.
 13. Execute `supabase/migrations/009_transient_contacts_and_accessories.sql`, que cria o contacto temporário e completa os capacetes e cadeados de cada quiosque.
+14. Execute `supabase/migrations/010_rental_concurrency.sql`, que reforça os bloqueios dos alugueres e devoluções simultâneas.
 
 Se surgir uma mensagem vermelha, pare e guarde uma captura do erro. Não execute os ficheiros repetidamente.
 

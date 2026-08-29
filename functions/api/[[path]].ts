@@ -1,3 +1,5 @@
+import { normalizeApiPath } from "../../src/shared/route";
+
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_SECRET_KEY?: string;
@@ -230,19 +232,14 @@ export const onRequest: PagesFunction<Env> = async ({
   params,
 }) => {
   const ctx: Ctx = { env };
-  const rawPath = params.path;
-  const parts = (
-    Array.isArray(rawPath)
-      ? rawPath.map(String)
-      : String(rawPath || "").split("/")
-  ).filter(Boolean);
-  const route = "/" + parts.join("/");
+  const route = normalizeApiPath(params.path as string | string[] | undefined);
+  const parts = route.split("/").filter(Boolean);
   try {
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204 });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.6.1",
+        version: "1.7.0",
         routing: "array-safe",
         database_errors: "detailed",
       });

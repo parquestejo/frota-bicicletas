@@ -70,6 +70,8 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/006_daily_closures.sql`
    - `supabase/migrations/007_rental_corrections.sql`
    - `supabase/migrations/008_children_and_accessories.sql`
+   - `supabase/migrations/009_transient_contacts_and_accessories.sql`
+   - `supabase/migrations/010_rental_concurrency.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -133,7 +135,18 @@ npm test
 npm run build
 ```
 
-Os testes cobrem autenticação/conta inativa, permissões, indisponibilidade, duplicação em aluguer aberto, aluguer múltiplo, devolução parcial e total, anomalias, mudança de localização, conclusão de avaria e auditoria. A base de dados reforça as regras com índice único parcial, bloqueios transacionais e restrições.
+Estes testes rápidos incluem testes unitários do domínio simplificado e verificações estruturais de regressão. Não substituem testes da aplicação contra PostgreSQL real.
+
+Existe também uma suite de integração para executar exclusivamente num projeto Supabase de teste isolado:
+
+```bash
+TEST_SUPABASE_URL="https://PROJETO-DE-TESTE.supabase.co" \
+TEST_SUPABASE_SERVICE_ROLE_KEY="CHAVE-APENAS-DO-PROJETO-DE-TESTE" \
+INTEGRATION_TEST_CONFIRMATION="TEST_DATABASE_CAN_BE_CLEARED" \
+npm run test:integration
+```
+
+Esta suite chama as funções SQL reais e verifica dois alugueres simultâneos do mesmo artigo, devoluções simultâneas e a eliminação do contacto. Nunca utilize credenciais de produção: os testes criam e eliminam registos.
 
 ## Segurança e operação
 

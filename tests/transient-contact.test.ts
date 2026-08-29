@@ -16,6 +16,10 @@ const pages = readFileSync(
   new URL("../src/pages.tsx", import.meta.url),
   "utf8",
 );
+const newRental = readFileSync(
+  new URL("../src/NewRental.tsx", import.meta.url),
+  "utf8",
+);
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 
 describe("contacto temporário do cliente", () => {
@@ -23,7 +27,7 @@ describe("contacto temporário do cliente", () => {
     expect(migration).toContain("p_customer_contact text default null");
     expect(api).toContain("p_customer_contact: customerContact || null");
     expect(api).toContain("Indique um número de contacto válido.");
-    expect(pages).toContain("Número de contacto (opcional)");
+    expect(newRental).toContain("Número de contacto (opcional)");
   });
   it("é apagado quando o aluguer termina", () => {
     expect(migration).toContain("new.customer_contact := null");
@@ -32,17 +36,19 @@ describe("contacto temporário do cliente", () => {
   it("não é copiado para a auditoria", () =>
     expect(migration).toContain("to_jsonb(r)-'customer_contact'"));
   it("mantém o campo simples e sem texto explicativo", () => {
-    expect(pages).not.toContain(
+    expect(newRental).not.toContain(
       "Utilizado apenas enquanto o aluguer estiver aberto",
     );
-    expect(pages).not.toContain(
+    expect(newRental).not.toContain(
       "O contacto é eliminado automaticamente após a devolução completa.",
     );
   });
   it("abre o novo aluguer numa página própria", () => {
     expect(app).toContain('path="/alugueres/novo"');
     expect(pages).toContain('to="/alugueres/novo"');
-    expect(pages).toContain("export function NewRental");
+    expect(newRental).toContain("export function NewRental");
+    expect(newRental).toContain('role="alert"');
+    expect(newRental).not.toContain("alert(");
   });
 });
 

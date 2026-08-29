@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, post, patch } from "./api";
 import { AdminDashboard } from "./AdminDashboard";
 import type {
@@ -1315,122 +1315,6 @@ function RentalCorrection({
         </div>
       )}
     </div>
-  );
-}
-
-export function NewRental({ user }: { user: User }) {
-  const navigate = useNavigate();
-  const { data, error } = useLoad<{
-    available_bikes: Bike[];
-    kiosks: Kiosk[];
-  }>("/rentals");
-  const [customer, setCustomer] = useState(""),
-    [customerContact, setCustomerContact] = useState(""),
-    [kiosk, setKiosk] = useState(""),
-    [selected, setSelected] = useState<string[]>([]),
-    [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (data && !kiosk)
-      setKiosk(user.usual_kiosk_id || data.kiosks[0]?.id || "");
-  }, [data, kiosk, user.usual_kiosk_id]);
-
-  async function start() {
-    if (!customer.trim() || !selected.length)
-      return alert("Indique o cliente e selecione pelo menos um item.");
-    setBusy(true);
-    try {
-      await post("/rentals", {
-        customer_ref: customer,
-        customer_contact: customerContact,
-        start_kiosk_id: kiosk,
-        bike_ids: selected,
-      });
-      navigate("/alugueres");
-    } catch (e) {
-      alert((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="title">
-        <div>
-          <h1>Novo aluguer</h1>
-          <p>Registe o cliente e selecione os itens a alugar</p>
-        </div>
-        <Link className="secondary" to="/alugueres">
-          Cancelar
-        </Link>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {!data ? (
-        !error && <p>A carregar…</p>
-      ) : (
-        <section className="card form">
-          <label>
-            Cliente ou referência
-            <input
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Número de contacto (opcional)
-            <input
-              type="tel"
-              autoComplete="tel"
-              maxLength={50}
-              value={customerContact}
-              onChange={(e) => setCustomerContact(e.target.value)}
-            />
-          </label>
-          <label>
-            Quiosque de saída
-            <select value={kiosk} onChange={(e) => setKiosk(e.target.value)}>
-              {data.kiosks.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <fieldset>
-            <legend>Bicicletas e acessórios disponíveis</legend>
-            <div className="bike-picker">
-              {data.available_bikes
-                .filter((b) => b.kiosk_id === kiosk)
-                .map((b) => (
-                  <label key={b.id}>
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(b.id)}
-                      onChange={(e) =>
-                        setSelected((current) =>
-                          e.target.checked
-                            ? [...current, b.id]
-                            : current.filter((id) => id !== b.id),
-                        )
-                      }
-                    />
-                    <b>{b.code}</b> {b.model}
-                  </label>
-                ))}
-            </div>
-          </fieldset>
-          <button
-            className="primary"
-            disabled={busy || !selected.length || !customer.trim()}
-            onClick={start}
-          >
-            {busy ? "A guardar…" : "Iniciar aluguer"}
-          </button>
-        </section>
-      )}
-    </>
   );
 }
 
