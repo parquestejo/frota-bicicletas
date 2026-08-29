@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, patch } from "./api";
+import { AdminDashboard } from "./AdminDashboard";
 import type {
   AssetType,
   Bike,
@@ -219,7 +220,7 @@ export function Dashboard({ user }: { user: User }) {
           Ver frota
         </Link>
       </div>
-      {!maintenance && (
+      {user.role === "funcionario" && (
         <section
           className={
             "card daily-closure-alert " +
@@ -243,6 +244,7 @@ export function Dashboard({ user }: { user: User }) {
           </Link>
         </section>
       )}
+      {user.role === "admin" && <AdminDashboard data={data.admin_management} />}
       {!maintenance && (
         <section className="card rented-section">
           <div className="title compact-title">

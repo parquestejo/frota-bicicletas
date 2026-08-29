@@ -427,6 +427,52 @@ th {
 .daily-closure-alert p {
   margin: 0.2rem 0;
 }
+.admin-management {
+  margin: 1.5rem 0 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--yellow);
+}
+.management-title {
+  margin-bottom: 1rem;
+}
+.management-periods {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.management-period {
+  display: grid;
+  gap: 0.45rem;
+  border-top: 4px solid var(--yellow);
+}
+.management-period > b {
+  font-size: 2rem;
+}
+.management-period > div {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+.positive-change {
+  color: #176337;
+}
+.negative-change {
+  color: #9d1c1c;
+}
+.management-alerts > span {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 700;
+}
+.management-block {
+  margin-bottom: 1rem;
+}
+.management-block h3 {
+  margin-top: 0;
+}
+.observation-row {
+  align-items: flex-start;
+}
 .closure-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -498,5 +544,13 @@ th {
   }
   .closure-stats {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .management-periods {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .management-periods {
+    grid-template-columns: 1fr;
   }
 }
