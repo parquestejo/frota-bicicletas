@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, post, patch } from "./api";
 import { AdminDashboard } from "./AdminDashboard";
 import type {
@@ -208,7 +208,7 @@ export function Dashboard({ user }: { user: User }) {
       <div className="actions">
         {!maintenance && (
           <>
-            <Link className="primary" to="/alugueres?novo=1">
+            <Link className="primary" to="/alugueres/novo">
               Novo aluguer
             </Link>
             <Link className="secondary" to="/alugueres">
@@ -1318,13 +1318,126 @@ function RentalCorrection({
   );
 }
 
+export function NewRental({ user }: { user: User }) {
+  const navigate = useNavigate();
+  const { data, error } = useLoad<{
+    available_bikes: Bike[];
+    kiosks: Kiosk[];
+  }>("/rentals");
+  const [customer, setCustomer] = useState(""),
+    [customerContact, setCustomerContact] = useState(""),
+    [kiosk, setKiosk] = useState(""),
+    [selected, setSelected] = useState<string[]>([]),
+    [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (data && !kiosk)
+      setKiosk(user.usual_kiosk_id || data.kiosks[0]?.id || "");
+  }, [data, kiosk, user.usual_kiosk_id]);
+
+  async function start() {
+    if (!customer.trim() || !selected.length)
+      return alert("Indique o cliente e selecione pelo menos um item.");
+    setBusy(true);
+    try {
+      await post("/rentals", {
+        customer_ref: customer,
+        customer_contact: customerContact,
+        start_kiosk_id: kiosk,
+        bike_ids: selected,
+      });
+      navigate("/alugueres");
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="title">
+        <div>
+          <h1>Novo aluguer</h1>
+          <p>Registe o cliente e selecione os itens a alugar</p>
+        </div>
+        <Link className="secondary" to="/alugueres">
+          Cancelar
+        </Link>
+      </div>
+      {error && <p className="error">{error}</p>}
+      {!data ? (
+        !error && <p>A carregar…</p>
+      ) : (
+        <section className="card form">
+          <label>
+            Cliente ou referência
+            <input
+              value={customer}
+              onChange={(e) => setCustomer(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Número de contacto (opcional)
+            <input
+              type="tel"
+              autoComplete="tel"
+              maxLength={50}
+              value={customerContact}
+              onChange={(e) => setCustomerContact(e.target.value)}
+            />
+          </label>
+          <label>
+            Quiosque de saída
+            <select value={kiosk} onChange={(e) => setKiosk(e.target.value)}>
+              {data.kiosks.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset>
+            <legend>Bicicletas e acessórios disponíveis</legend>
+            <div className="bike-picker">
+              {data.available_bikes
+                .filter((b) => b.kiosk_id === kiosk)
+                .map((b) => (
+                  <label key={b.id}>
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(b.id)}
+                      onChange={(e) =>
+                        setSelected((current) =>
+                          e.target.checked
+                            ? [...current, b.id]
+                            : current.filter((id) => id !== b.id),
+                        )
+                      }
+                    />
+                    <b>{b.code}</b> {b.model}
+                  </label>
+                ))}
+            </div>
+          </fieldset>
+          <button
+            className="primary"
+            disabled={busy || !selected.length || !customer.trim()}
+            onClick={start}
+          >
+            {busy ? "A guardar…" : "Iniciar aluguer"}
+          </button>
+        </section>
+      )}
+    </>
+  );
+}
+
 export function Rentals({ user }: { user: User }) {
   const [refresh, setRefresh] = useState(0),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState(""),
-    [show, setShow] = useState(
-      new URLSearchParams(location.search).has("novo"),
-    ),
     [returning, setReturning] = useState<Rental | null>(null),
     [anomalies, setAnomalies] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false);
@@ -1337,29 +1450,6 @@ export function Rentals({ user }: { user: User }) {
   const visibleRentals = (data?.rentals || []).filter((r) =>
     inDateRange(r.started_at, dateFrom, dateTo),
   );
-  const [customer, setCustomer] = useState(""),
-    [customerContact, setCustomerContact] = useState(""),
-    [kiosk, setKiosk] = useState(""),
-    [selected, setSelected] = useState<string[]>([]);
-  useEffect(() => {
-    if (data && !kiosk)
-      setKiosk(user.usual_kiosk_id || data.kiosks[0]?.id || "");
-  }, [data, kiosk, user.usual_kiosk_id]);
-  async function start() {
-    if (!customer.trim() || !selected.length)
-      return alert("Indique o cliente e selecione pelo menos um item.");
-    await post("/rentals", {
-      customer_ref: customer,
-      customer_contact: customerContact,
-      start_kiosk_id: kiosk,
-      bike_ids: selected,
-    });
-    setCustomer("");
-    setCustomerContact("");
-    setSelected([]);
-    setShow(false);
-    setRefresh((x) => x + 1);
-  }
   async function confirmReturn() {
     if (!returning) return;
     const items = returning.items
@@ -1393,9 +1483,9 @@ export function Rentals({ user }: { user: User }) {
             {user.role === "admin" ? "Todos os alugueres" : "Os meus alugueres"}
           </p>
         </div>
-        <button className="primary" onClick={() => setShow(!show)}>
+        <Link className="primary" to="/alugueres/novo">
           Novo aluguer
-        </button>
+        </Link>
       </div>
       <RentalSummary
         rentals={data?.rentals || []}
@@ -1407,73 +1497,6 @@ export function Rentals({ user }: { user: User }) {
         onFrom={setDateFrom}
         onTo={setDateTo}
       />
-      {show && (
-        <section className="card form">
-          <h2>Novo aluguer</h2>
-          <label>
-            Cliente ou referência
-            <input
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Número de contacto (opcional)
-            <input
-              type="tel"
-              autoComplete="tel"
-              maxLength={50}
-              value={customerContact}
-              placeholder="Utilizado apenas enquanto o aluguer estiver aberto"
-              onChange={(e) => setCustomerContact(e.target.value)}
-            />
-            <small>
-              O contacto é eliminado automaticamente após a devolução completa.
-            </small>
-          </label>
-          <label>
-            Quiosque de saída
-            <select value={kiosk} onChange={(e) => setKiosk(e.target.value)}>
-              {data?.kiosks.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <fieldset>
-            <legend>Bicicletas e acessórios disponíveis</legend>
-            <div className="bike-picker">
-              {data?.available_bikes
-                .filter((b) => b.kiosk_id === kiosk)
-                .map((b) => (
-                  <label key={b.id}>
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(b.id)}
-                      onChange={(e) =>
-                        setSelected((x) =>
-                          e.target.checked
-                            ? [...x, b.id]
-                            : x.filter((id) => id !== b.id),
-                        )
-                      }
-                    />
-                    <b>{b.code}</b> {b.model}
-                  </label>
-                ))}
-            </div>
-          </fieldset>
-          <button
-            className="primary"
-            disabled={!selected.length || !customer.trim()}
-            onClick={start}
-          >
-            Iniciar aluguer
-          </button>
-        </section>
-      )}
       {returning && (
         <section className="card return-box">
           <div className="title">

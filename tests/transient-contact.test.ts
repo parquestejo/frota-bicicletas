@@ -16,6 +16,7 @@ const pages = readFileSync(
   new URL("../src/pages.tsx", import.meta.url),
   "utf8",
 );
+const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 
 describe("contacto temporário do cliente", () => {
   it("é opcional e aceite no início do aluguer", () => {
@@ -30,6 +31,19 @@ describe("contacto temporário do cliente", () => {
   });
   it("não é copiado para a auditoria", () =>
     expect(migration).toContain("to_jsonb(r)-'customer_contact'"));
+  it("mantém o campo simples e sem texto explicativo", () => {
+    expect(pages).not.toContain(
+      "Utilizado apenas enquanto o aluguer estiver aberto",
+    );
+    expect(pages).not.toContain(
+      "O contacto é eliminado automaticamente após a devolução completa.",
+    );
+  });
+  it("abre o novo aluguer numa página própria", () => {
+    expect(app).toContain('path="/alugueres/novo"');
+    expect(pages).toContain('to="/alugueres/novo"');
+    expect(pages).toContain("export function NewRental");
+  });
 });
 
 describe("inventário automático de acessórios", () => {

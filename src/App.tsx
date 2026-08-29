@@ -12,6 +12,7 @@ import {
   BikeDetail,
   Dashboard,
   Fleet,
+  NewRental,
   Rentals,
   Faults,
   FaultReport,
@@ -242,6 +243,16 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
                 <BikeDetail user={user} />
               ) : (
                 <Navigate to="/frota" />
+              )
+            }
+          />
+          <Route
+            path="/alugueres/novo"
+            element={
+              user.role === "manutencao" ? (
+                <Navigate to="/" />
+              ) : (
+                <NewRental user={user} />
               )
             }
           />
