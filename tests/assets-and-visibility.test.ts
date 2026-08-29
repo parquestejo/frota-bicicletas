@@ -12,6 +12,10 @@ const api = readFileSync(
   new URL("../functions/api/[[path]].ts", import.meta.url),
   "utf8",
 );
+const pages = readFileSync(
+  new URL("../src/pages.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("bicicletas infantis e acessórios", () => {
   it("cria as seis categorias de inventário", () =>
@@ -28,6 +32,14 @@ describe("bicicletas infantis e acessórios", () => {
   });
 });
 
+describe("matriz de inventário", () => {
+  it("cruza localização, tipologia e estado", () => {
+    expect(pages).toContain("Por localização, tipologia e estado");
+    expect(pages).toContain("byLocationAndType");
+    expect(pages).toContain("Elétricas");
+  });
+});
+
 describe("visibilidade operacional do funcionário", () => {
   it("filtra a frota pelos quiosques que permitem alugueres", () =>
     expect(api).toContain(
@@ -37,4 +49,12 @@ describe("visibilidade operacional do funcionário", () => {
     expect(api).toContain(
       "select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at",
     ));
+  it("devolve apenas itens disponíveis ou alugados", () => {
+    expect(api).toContain(
+      "['Disponível','Alugada'].includes(b.status)",
+    );
+    expect(api).toContain(
+      "status=in.(${q('Disponível')},${q('Alugada')})",
+    );
+  });
 });

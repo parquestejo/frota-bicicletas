@@ -20,6 +20,7 @@ const statuses: BikeStatus[] = [
   "Em manutenção",
   "Indisponível",
 ];
+const operationalStatuses: BikeStatus[] = ["Disponível", "Alugada"];
 const assetOptions: {
   value: AssetType;
   label: string;
@@ -155,6 +156,8 @@ function useLoad<T>(path: string, refresh = 0) {
 export function Dashboard({ user }: { user: User }) {
   const maintenance = user.role === "manutencao";
   const canViewFaults = user.role !== "funcionario";
+  const dashboardStatuses =
+    user.role === "funcionario" ? operationalStatuses : statuses;
   const { data, error } = useLoad<any>("/dashboard");
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p>A carregar…</p>;
@@ -167,7 +170,7 @@ export function Dashboard({ user }: { user: User }) {
         </div>
       </div>
       <div className="metrics">
-        {statuses.map((s) => {
+        {dashboardStatuses.map((s) => {
           const c = data.counts_by_type?.[s] || {
             total: data.counts[s] || 0,
             electric: 0,
@@ -537,11 +540,14 @@ function FleetSummary({
   bikes,
   kiosks,
   canExport,
+  operationalOnly,
 }: {
   bikes: Bike[];
   kiosks: Kiosk[];
   canExport: boolean;
+  operationalOnly: boolean;
 }) {
+  const visibleStatuses = operationalOnly ? operationalStatuses : statuses;
   const active = bikes.filter((b) => b.active !== false),
     electric = active.filter((b) => assetTypeOf(b) === "electric"),
     conventional = active.filter((b) => assetTypeOf(b) === "conventional"),
@@ -560,14 +566,37 @@ function FleetSummary({
       accessories: list.filter((b) => !isBicycle(b)).length,
     };
   };
-  const byLocation = (id: string) => {
-    const list = active.filter((b) => b.kiosk_id === id);
+  const locationTypes = [
+    {
+      key: "electric",
+      label: "Elétricas",
+      matches: (b: Bike) => assetTypeOf(b) === "electric",
+    },
+    {
+      key: "conventional",
+      label: "Convencionais",
+      matches: (b: Bike) => assetTypeOf(b) === "conventional",
+    },
+    {
+      key: "child",
+      label: "Infantis",
+      matches: (b: Bike) => assetTypeOf(b) === "child",
+    },
+    {
+      key: "accessories",
+      label: "Acessórios",
+      matches: (b: Bike) => !isBicycle(b),
+    },
+  ];
+  const byLocationAndType = (id: string, matches: (b: Bike) => boolean) => {
+    const list = active.filter((b) => b.kiosk_id === id && matches(b));
     return {
       total: list.length,
-      bicycles: list.filter(isBicycle).length,
-      accessories: list.filter((b) => !isBicycle(b)).length,
       states: Object.fromEntries(
-        statuses.map((s) => [s, list.filter((b) => b.status === s).length]),
+        visibleStatuses.map((s) => [
+          s,
+          list.filter((b) => b.status === s).length,
+        ]),
       ),
     };
   };
@@ -648,11 +677,13 @@ function FleetSummary({
           <b>{rate}%</b>
           <small>{available} itens disponíveis</small>
         </div>
-        <div className="card alert-kpi">
-          <span>Fora de serviço</span>
-          <b>{out}</b>
-          <small>Avariadas, em manutenção ou indisponíveis</small>
-        </div>
+        {!operationalOnly && (
+          <div className="card alert-kpi">
+            <span>Fora de serviço</span>
+            <b>{out}</b>
+            <small>Avariadas, em manutenção ou indisponíveis</small>
+          </div>
+        )}
       </div>
       <div className="fleet-summary-grid">
         <section className="card">
@@ -663,7 +694,7 @@ function FleetSummary({
             <span>Acessórios</span>
             <span>Total</span>
           </div>
-          {statuses.map((s) => {
+          {visibleStatuses.map((s) => {
             const c = byStatus(s);
             return (
               <div className="summary-row" key={s}>
@@ -676,42 +707,51 @@ function FleetSummary({
           })}
         </section>
         <section className="card location-status-card">
-          <h2>Por localização e estado</h2>
+          <h2>Por localização, tipologia e estado</h2>
           <p className="muted">
-            Distribuição atual dos itens em cada quiosque ou localização
-            interna.
+            Cada localização apresenta separadamente as bicicletas elétricas,
+            convencionais, infantis e os acessórios.
           </p>
           <div className="table-wrap location-table-wrap">
             <table className="location-state-table">
               <thead>
                 <tr>
                   <th>Localização</th>
-                  {statuses.map((s) => (
+                  <th>Tipologia</th>
+                  {visibleStatuses.map((s) => (
                     <th key={s}>{s}</th>
                   ))}
                   <th>Total</th>
                 </tr>
               </thead>
               <tbody>
-                {kiosks.map((k) => {
-                  const c = byLocation(k.id);
-                  return (
-                    <tr key={k.id}>
-                      <td>
-                        <b>{k.name}</b>
-                        <small className="block-meta">
-                          Bicicletas: {c.bicycles} · Acessórios: {c.accessories}
-                        </small>
-                      </td>
-                      {statuses.map((s) => (
-                        <td key={s}>{c.states[s]}</td>
-                      ))}
-                      <td>
-                        <b>{c.total}</b>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {kiosks.flatMap((k) =>
+                  locationTypes.map((type, index) => {
+                    const c = byLocationAndType(k.id, type.matches);
+                    return (
+                      <tr
+                        className="location-type-row"
+                        key={`${k.id}-${type.key}`}
+                      >
+                        {index === 0 && (
+                          <td
+                            className="location-name-cell"
+                            rowSpan={locationTypes.length}
+                          >
+                            <b>{k.name}</b>
+                          </td>
+                        )}
+                        <td>{type.label}</td>
+                        {visibleStatuses.map((s) => (
+                          <td key={s}>{c.states[s]}</td>
+                        ))}
+                        <td>
+                          <b>{c.total}</b>
+                        </td>
+                      </tr>
+                    );
+                  }),
+                )}
               </tbody>
             </table>
           </div>
@@ -771,6 +811,7 @@ export function Fleet({ user }: { user: User }) {
         bikes={data?.bikes || []}
         kiosks={data?.kiosks || []}
         canExport={user.role === "admin"}
+        operationalOnly={user.role === "funcionario"}
       />
       <div className="filters">
         <input
@@ -788,7 +829,7 @@ export function Fleet({ user }: { user: User }) {
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Todos os estados</option>
-          {statuses.map((x) => (
+          {(user.role === "funcionario" ? operationalStatuses : statuses).map((x) => (
             <option key={x}>{x}</option>
           ))}
         </select>

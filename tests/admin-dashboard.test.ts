@@ -19,8 +19,19 @@ describe("dashboard administrativo", () => {
     expect(api).toContain("open_rentals:openRentalDetails");
   });
   it("apresenta relatórios e acesso aos talões", () => {
-    expect(view).toContain("Relatórios de final de dia — hoje");
+    expect(view).toContain("Últimos relatórios de final de dia");
     expect(view).toContain("/receipt");
+  });
+  it("mostra os três últimos fechos de cada quiosque", () => {
+    expect(api).toContain("recentClosureGroups");
+    expect(api).toContain("&limit=3");
+    expect(view).toContain("3 por quiosque");
+  });
+  it("limita o inventário aos itens disponíveis e alugados", () => {
+    expect(api).toContain(
+      "b.kiosk_id===k.id&&['Disponível','Alugada'].includes(b.status)",
+    );
+    expect(view).not.toContain("Avar./Manut.");
   });
   it("permite exportar a informação de gestão", () =>
     expect(view).toContain("dashboard-gestao.csv"));

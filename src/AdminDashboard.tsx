@@ -7,7 +7,7 @@ type Period = {
 };
 type ManagementData = {
   periods: { today: Period; week: Period; month: Period };
-  closures_today: any[];
+  closures_recent: any[];
   recent_observations: any[];
   open_rentals: any[];
   pending_discrepancies: number;
@@ -71,7 +71,8 @@ function exportManagement(data: ManagementData) {
   rows.push(
     [],
     [
-      "Fechos de hoje",
+      "Últimos fechos",
+      "Data",
       "Quiosque",
       "Funcionário",
       "Alugueres",
@@ -81,9 +82,10 @@ function exportManagement(data: ManagementData) {
       "Observações",
     ],
   );
-  data.closures_today.forEach((c) =>
+  data.closures_recent.forEach((c) =>
     rows.push([
       "Fecho",
+      c.report_date,
       c.kiosk?.name,
       c.user?.full_name,
       c.rental_count,
@@ -101,9 +103,6 @@ function exportManagement(data: ManagementData) {
       "Total",
       "Disponíveis",
       "Alugados",
-      "Avariados",
-      "Em manutenção",
-      "Indisponíveis",
     ],
   );
   data.fleet_by_kiosk.forEach((k) =>
@@ -113,9 +112,6 @@ function exportManagement(data: ManagementData) {
       k.total,
       k.by_status["Disponível"],
       k.by_status["Alugada"],
-      k.by_status["Avariada"],
-      k.by_status["Em manutenção"],
-      k.by_status["Indisponível"],
     ]),
   );
   const content = "\ufeff" + rows.map((r) => r.map(csv).join(";")).join("\r\n"),
@@ -187,23 +183,17 @@ export function AdminDashboard({ data }: { data?: ManagementData | null }) {
       <section className="card management-block">
         <div className="title compact-title">
           <div>
-            <h3>Relatórios de final de dia — hoje</h3>
-            <p>Dados declarados pelos funcionários</p>
+            <h3>Últimos relatórios de final de dia</h3>
+            <p>Os três relatórios mais recentes de cada quiosque</p>
           </div>
-          <strong>
-            {money(
-              data.closures_today.reduce(
-                (s, c) => s + Number(c.card_total || 0),
-                0,
-              ),
-            )}
-          </strong>
+          <strong>3 por quiosque</strong>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Quiosque</th>
+                <th>Data</th>
                 <th>Funcionário</th>
                 <th>Alugueres</th>
                 <th>Bicicletas</th>
@@ -215,12 +205,13 @@ export function AdminDashboard({ data }: { data?: ManagementData | null }) {
               </tr>
             </thead>
             <tbody>
-              {data.closures_today.length ? (
-                data.closures_today.map((c) => (
+              {data.closures_recent.length ? (
+                data.closures_recent.map((c) => (
                   <tr key={c.id}>
                     <td>
                       <b>{c.kiosk?.name}</b>
                     </td>
+                    <td>{c.report_date}</td>
                     <td>{c.user?.full_name}</td>
                     <td>{c.rental_count}</td>
                     <td>{c.bike_count}</td>
@@ -249,8 +240,8 @@ export function AdminDashboard({ data }: { data?: ManagementData | null }) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9}>
-                    Ainda não existem relatórios registados hoje.
+                  <td colSpan={10}>
+                    Ainda não existem relatórios finais submetidos.
                   </td>
                 </tr>
               )}
@@ -260,7 +251,8 @@ export function AdminDashboard({ data }: { data?: ManagementData | null }) {
       </section>
       <div className="grid2">
         <section className="card management-block">
-          <h3>Inventário por quiosque</h3>
+          <h3>Inventário operacional por quiosque</h3>
+          <p className="muted">Apenas itens disponíveis ou alugados.</p>
           <div className="table-wrap">
             <table>
               <thead>
@@ -272,7 +264,6 @@ export function AdminDashboard({ data }: { data?: ManagementData | null }) {
                   <th>Acess.</th>
                   <th>Disp.</th>
                   <th>Alug.</th>
-                  <th>Avar./Manut.</th>
                 </tr>
               </thead>
               <tbody>
@@ -287,9 +278,6 @@ export function AdminDashboard({ data }: { data?: ManagementData | null }) {
                     <td>{k.by_type.accessories}</td>
                     <td>{k.by_status["Disponível"]}</td>
                     <td>{k.by_status["Alugada"]}</td>
-                    <td>
-                      {k.by_status["Avariada"] + k.by_status["Em manutenção"]}
-                    </td>
                   </tr>
                 ))}
               </tbody>

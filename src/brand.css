@@ -46,6 +46,9 @@
 .location-state-table{min-width:900px}
 .location-state-table th:not(:first-child),.location-state-table td:not(:first-child){text-align:center}
 .location-state-table td:first-child{min-width:180px}
+.location-state-table .location-name-cell{vertical-align:top;text-align:left;background:#faf9f6;border-top:3px solid #d5d1c8}
+.location-state-table .location-type-row:first-child td{border-top:3px solid #d5d1c8}
+.location-state-table .location-type-row td:nth-last-child(-n+6){font-variant-numeric:tabular-nums}
 .summary-head,.summary-row{display:grid;grid-template-columns:minmax(140px,1fr) 82px 105px 55px;align-items:center;gap:.5rem;padding:.55rem 0;border-bottom:1px solid #eceae5}
 .summary-head{font-size:.75rem;font-weight:700;color:#6f6e6b}
 .summary-row>span:not(:first-child),.summary-row>b,.summary-head>span:not(:first-child){text-align:center}

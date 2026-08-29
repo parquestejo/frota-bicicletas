@@ -242,7 +242,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204 });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.5.1",
+        version: "1.5.3",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -388,7 +388,7 @@ export const onRequest: PagesFunction<Env> = async ({
         ]);
       const kiosks=ctx.user.role==='funcionario'?allKiosks.filter((k:any)=>k.allows_rentals):allKiosks;
       const visibleKioskIds=new Set(kiosks.map((k:any)=>k.id));
-      const bikes=ctx.user.role==='funcionario'?allBikes.filter((b:any)=>visibleKioskIds.has(b.kiosk_id)):allBikes;
+      const bikes=ctx.user.role==='funcionario'?allBikes.filter((b:any)=>visibleKioskIds.has(b.kiosk_id)&&['Disponível','Alugada'].includes(b.status)):allBikes;
       const counts: any = {},
         counts_by_type: any = {};
       bikes.forEach((b: any) => {
@@ -430,27 +430,28 @@ export const onRequest: PagesFunction<Env> = async ({
       let admin_management:any=null;
       if(ctx.user.role==='admin'){
         const dateKey=(value:string|Date)=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Lisbon'}).format(new Date(value)),today=dateKey(new Date()),todayDate=new Date(today+'T00:00:00Z'),yesterdayDate=new Date(todayDate);yesterdayDate.setUTCDate(yesterdayDate.getUTCDate()-1);const yesterday=yesterdayDate.toISOString().slice(0,10),weekDate=new Date(todayDate);weekDate.setUTCDate(weekDate.getUTCDate()-((weekDate.getUTCDay()+6)%7));const weekStart=weekDate.toISOString().slice(0,10),previousWeekDate=new Date(weekDate);previousWeekDate.setUTCDate(previousWeekDate.getUTCDate()-7);const previousWeekStart=previousWeekDate.toISOString().slice(0,10),monthStart=today.slice(0,7)+'-01',monthDate=new Date(monthStart+'T00:00:00Z'),previousMonthDate=new Date(monthDate);previousMonthDate.setUTCMonth(previousMonthDate.getUTCMonth()-1);const previousMonthStart=previousMonthDate.toISOString().slice(0,10);
-        const [periodRentals,periodClosures,openRentalDetails,discrepancies]=await Promise.all([
+        const rentalKiosks=kiosks.filter((k:any)=>k.allows_rentals);
+        const [periodRentals,periodClosures,openRentalDetails,discrepancies,recentClosureGroups]=await Promise.all([
           db(ctx,`rentals?started_at=gte.${q(previousMonthStart+'T00:00:00Z')}&select=id,started_at,status,items:rental_items(id,bike:bikes(asset_type))`),
           db(ctx,`daily_closures?report_date=gte.${q(previousMonthStart)}&select=*,kiosk:kiosks(name),user:users(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast`),
           db(ctx,'rentals?status=eq.Em%20aberto&select=id,reference,customer_ref,started_at,start_kiosk:kiosks(name),started_by_user:users!rentals_started_by_fkey(full_name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.asc'),
-          db(ctx,'rental_discrepancies?status=eq.Pendente&select=id')
+          db(ctx,'rental_discrepancies?status=eq.Pendente&select=id'),
+          Promise.all(rentalKiosks.map((k:any)=>db(ctx,`daily_closures?kiosk_id=eq.${q(k.id)}&status=eq.Submetido&select=*,kiosk:kiosks(name),user:users(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast&limit=3`)))
         ]);
         const rentalStats=(from:string,to?:string)=>{const list=periodRentals.filter((r:any)=>{const d=dateKey(r.started_at);return d>=from&&(!to||d<to)});return{rentals:list.length,items:list.reduce((sum:number,r:any)=>sum+(r.items?.length||0),0)}};
         const revenueStats=(from:string,to?:string)=>periodClosures.filter((c:any)=>c.status==='Submetido'&&c.report_date>=from&&(!to||c.report_date<to)).reduce((sum:number,c:any)=>sum+Number(c.card_total||0),0);
-        const rentalKiosks=kiosks.filter((k:any)=>k.allows_rentals);
         admin_management={
           periods:{
             today:{current:rentalStats(today),previous:rentalStats(yesterday,today),revenue:revenueStats(today),previous_revenue:revenueStats(yesterday,today)},
             week:{current:rentalStats(weekStart),previous:rentalStats(previousWeekStart,weekStart),revenue:revenueStats(weekStart),previous_revenue:revenueStats(previousWeekStart,weekStart)},
             month:{current:rentalStats(monthStart),previous:rentalStats(previousMonthStart,monthStart),revenue:revenueStats(monthStart),previous_revenue:revenueStats(previousMonthStart,monthStart)}
           },
-          closures_today:periodClosures.filter((c:any)=>c.report_date===today),
+          closures_recent:recentClosureGroups.flat(),
           recent_observations:periodClosures.filter((c:any)=>String(c.observations||'').trim()).slice(0,6),
           open_rentals:openRentalDetails,
           pending_discrepancies:discrepancies.length,
           pending_faults:faults.length,
-          fleet_by_kiosk:rentalKiosks.map((k:any)=>{const list=bikes.filter((b:any)=>b.kiosk_id===k.id);return{id:k.id,name:k.name,total:list.length,by_type:{electric:list.filter((b:any)=>b.asset_type==='electric').length,conventional:list.filter((b:any)=>b.asset_type==='conventional').length,child:list.filter((b:any)=>b.asset_type==='child').length,accessories:list.filter((b:any)=>['helmet','lock','stroller'].includes(b.asset_type)).length},by_status:Object.fromEntries(['Disponível','Alugada','Avariada','Em manutenção','Indisponível'].map(s=>[s,list.filter((b:any)=>b.status===s).length]))}})
+          fleet_by_kiosk:rentalKiosks.map((k:any)=>{const list=bikes.filter((b:any)=>b.kiosk_id===k.id&&['Disponível','Alugada'].includes(b.status));return{id:k.id,name:k.name,total:list.length,by_type:{electric:list.filter((b:any)=>b.asset_type==='electric').length,conventional:list.filter((b:any)=>b.asset_type==='conventional').length,child:list.filter((b:any)=>b.asset_type==='child').length,accessories:list.filter((b:any)=>['helmet','lock','stroller'].includes(b.asset_type)).length},by_status:Object.fromEntries(['Disponível','Alugada'].map(s=>[s,list.filter((b:any)=>b.status===s).length]))}})
         };
       }
       return json({
@@ -487,7 +488,7 @@ export const onRequest: PagesFunction<Env> = async ({
       const kiosks=await db(ctx,`kiosks?active=eq.true${ctx.user.role==='funcionario'?'&allows_rentals=eq.true':''}&select=*&order=name`);
       const kioskIds=kiosks.map((k:any)=>k.id);
       const bikeQuery=ctx.user.role==='funcionario'
-        ? `bikes?active=eq.true&kiosk_id=in.(${kioskIds.join(',')})&select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at,kiosk:kiosks(id,name,allows_rentals)&order=code`
+        ? `bikes?active=eq.true&kiosk_id=in.(${kioskIds.join(',')})&status=in.(${q('Disponível')},${q('Alugada')})&select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at,kiosk:kiosks(id,name,allows_rentals)&order=code`
         : "bikes?select=*,kiosk:kiosks(*)&order=code";
       const bikes=ctx.user.role==='funcionario'&&!kioskIds.length?[]:await db(ctx,bikeQuery);
       return json({ bikes, kiosks });
