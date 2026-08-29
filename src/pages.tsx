@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, patch } from "./api";
 import type {
+  AssetType,
   Bike,
   BikeStatus,
   Fault,
@@ -18,6 +19,45 @@ const statuses: BikeStatus[] = [
   "Em manutenção",
   "Indisponível",
 ];
+const assetOptions: {
+  value: AssetType;
+  label: string;
+  prefix: string;
+  model: string;
+}[] = [
+  {
+    value: "electric",
+    label: "Bicicleta elétrica",
+    prefix: "E",
+    model: "Bicicleta elétrica",
+  },
+  {
+    value: "conventional",
+    label: "Bicicleta convencional",
+    prefix: "C",
+    model: "Bicicleta convencional",
+  },
+  {
+    value: "child",
+    label: "Bicicleta de criança",
+    prefix: "I",
+    model: "Bicicleta infantil",
+  },
+  { value: "helmet", label: "Capacete", prefix: "CAP", model: "Capacete" },
+  { value: "lock", label: "Cadeado", prefix: "CAD", model: "Cadeado" },
+  {
+    value: "stroller",
+    label: "Carrinho de bebé",
+    prefix: "CAR",
+    model: "Carrinho de bebé",
+  },
+];
+const assetTypeOf = (b?: Bike): AssetType =>
+  b?.asset_type || (b?.code.startsWith("E") ? "electric" : "conventional");
+const assetLabel = (b?: Bike) =>
+  assetOptions.find((x) => x.value === assetTypeOf(b))?.label || "Item";
+const isBicycle = (b?: Bike) =>
+  ["electric", "conventional", "child"].includes(assetTypeOf(b));
 const fmt = (d?: string) =>
   d
     ? new Intl.DateTimeFormat("pt-PT", {
@@ -131,6 +171,10 @@ export function Dashboard({ user }: { user: User }) {
             total: data.counts[s] || 0,
             electric: 0,
             conventional: 0,
+            child: 0,
+            helmet: 0,
+            lock: 0,
+            stroller: 0,
           };
           return (
             <div className="card metric" key={s}>
@@ -142,6 +186,15 @@ export function Dashboard({ user }: { user: User }) {
                 </span>
                 <span>
                   Convencionais <strong>{c.conventional}</strong>
+                </span>
+                <span>
+                  Infantis <strong>{c.child || 0}</strong>
+                </span>
+                <span>
+                  Acessórios{" "}
+                  <strong>
+                    {(c.helmet || 0) + (c.lock || 0) + (c.stroller || 0)}
+                  </strong>
                 </span>
               </div>
             </div>
@@ -194,7 +247,7 @@ export function Dashboard({ user }: { user: User }) {
         <section className="card rented-section">
           <div className="title compact-title">
             <div>
-              <h2>Bicicletas alugadas</h2>
+              <h2>Itens alugados</h2>
               <p>Distribuição atual por tipologia e quiosque</p>
             </div>
             <strong className="rented-total">{data.rented?.total || 0}</strong>
@@ -208,6 +261,14 @@ export function Dashboard({ user }: { user: User }) {
               <span>Convencionais</span>
               <b>{data.rented?.conventional || 0}</b>
             </div>
+            <div>
+              <span>Infantis</span>
+              <b>{data.rented?.child || 0}</b>
+            </div>
+            <div>
+              <span>Acessórios</span>
+              <b>{data.rented?.accessories || 0}</b>
+            </div>
           </div>
           <div className="table-wrap">
             <table className="rented-table">
@@ -216,7 +277,9 @@ export function Dashboard({ user }: { user: User }) {
                   <th>Quiosque</th>
                   <th>Elétricas</th>
                   <th>Convencionais</th>
-                  <th>Total alugadas</th>
+                  <th>Infantis</th>
+                  <th>Acessórios</th>
+                  <th>Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,6 +290,8 @@ export function Dashboard({ user }: { user: User }) {
                     </td>
                     <td>{k.electric}</td>
                     <td>{k.conventional}</td>
+                    <td>{k.child}</td>
+                    <td>{k.accessories}</td>
                     <td>
                       <b>{k.total}</b>
                     </td>
@@ -287,7 +352,7 @@ export function Dashboard({ user }: { user: User }) {
             {data.faults.map((f: any) => (
               <div className="row" key={f.id}>
                 <span>
-                  Bicicleta {f.bike_code} · {f.category}
+                  Item {f.bike_code} · {f.category}
                 </span>
                 <Badge>{f.status}</Badge>
               </div>
@@ -315,7 +380,7 @@ function BikeAdminControls({
   return (
     <div className="inline-edit">
       <select
-        aria-label={"Estado da bicicleta " + bike.code}
+        aria-label={"Estado do item " + bike.code}
         value={status}
         onChange={(e) => setStatus(e.target.value as BikeStatus)}
       >
@@ -324,7 +389,7 @@ function BikeAdminControls({
         ))}
       </select>
       <select
-        aria-label={"Localização da bicicleta " + bike.code}
+        aria-label={"Localização do item " + bike.code}
         value={kiosk}
         onChange={(e) => setKiosk(e.target.value)}
       >
@@ -379,23 +444,26 @@ function BikeCreateForm({
   onCreated: () => void;
   onCancel: () => void;
 }) {
-  const [type, setType] = useState<"E" | "C">("C"),
+  const [assetType, setAssetType] = useState<AssetType>("conventional"),
     [number, setNumber] = useState(""),
     [model, setModel] = useState(""),
     [kiosk, setKiosk] = useState(kiosks[0]?.id || ""),
     [busy, setBusy] = useState(false);
   return (
     <section className="card form compact-form">
-      <h2>Adicionar bicicleta</h2>
+      <h2>Adicionar item</h2>
       <div className="form-grid">
         <label>
           Tipo
           <select
-            value={type}
-            onChange={(e) => setType(e.target.value as "E" | "C")}
+            value={assetType}
+            onChange={(e) => setAssetType(e.target.value as AssetType)}
           >
-            <option value="C">C — Convencional</option>
-            <option value="E">E — Elétrica</option>
+            {assetOptions.map((x) => (
+              <option key={x.value} value={x.value}>
+                {x.prefix} — {x.label}
+              </option>
+            ))}
           </select>
         </label>
         <label>
@@ -409,16 +477,15 @@ function BikeCreateForm({
             }
           />
           <small>
-            O código será {type}
+            O código será{" "}
+            {assetOptions.find((x) => x.value === assetType)?.prefix}
             {number.padStart(3, "0") || "001"}.
           </small>
         </label>
         <label>
           Modelo
           <input
-            placeholder={
-              type === "E" ? "Bicicleta elétrica" : "Bicicleta convencional"
-            }
+            placeholder={assetOptions.find((x) => x.value === assetType)?.model}
             value={model}
             onChange={(e) => setModel(e.target.value)}
           />
@@ -441,7 +508,12 @@ function BikeCreateForm({
           onClick={async () => {
             setBusy(true);
             try {
-              await post("/bikes", { type, number, model, kiosk_id: kiosk });
+              await post("/bikes", {
+                asset_type: assetType,
+                number,
+                model,
+                kiosk_id: kiosk,
+              });
               onCreated();
             } catch (e) {
               alert((e as Error).message);
@@ -450,7 +522,7 @@ function BikeCreateForm({
             }
           }}
         >
-          {busy ? "A guardar…" : "Criar bicicleta"}
+          {busy ? "A guardar…" : "Criar item"}
         </button>
         <button className="secondary" onClick={onCancel}>
           Cancelar
@@ -469,8 +541,10 @@ function FleetSummary({
   canExport: boolean;
 }) {
   const active = bikes.filter((b) => b.active !== false),
-    electric = active.filter((b) => b.code.startsWith("E")),
-    conventional = active.filter((b) => b.code.startsWith("C")),
+    electric = active.filter((b) => assetTypeOf(b) === "electric"),
+    conventional = active.filter((b) => assetTypeOf(b) === "conventional"),
+    child = active.filter((b) => assetTypeOf(b) === "child"),
+    accessories = active.filter((b) => !isBicycle(b)),
     available = active.filter((b) => b.status === "Disponível").length,
     out = active.filter((b) =>
       ["Avariada", "Em manutenção", "Indisponível"].includes(b.status),
@@ -480,16 +554,16 @@ function FleetSummary({
     const list = active.filter((b) => b.status === status);
     return {
       total: list.length,
-      electric: list.filter((b) => b.code.startsWith("E")).length,
-      conventional: list.filter((b) => b.code.startsWith("C")).length,
+      bicycles: list.filter(isBicycle).length,
+      accessories: list.filter((b) => !isBicycle(b)).length,
     };
   };
   const byLocation = (id: string) => {
     const list = active.filter((b) => b.kiosk_id === id);
     return {
       total: list.length,
-      electric: list.filter((b) => b.code.startsWith("E")).length,
-      conventional: list.filter((b) => b.code.startsWith("C")).length,
+      bicycles: list.filter(isBicycle).length,
+      accessories: list.filter((b) => !isBicycle(b)).length,
       states: Object.fromEntries(
         statuses.map((s) => [s, list.filter((b) => b.status === s).length]),
       ),
@@ -527,7 +601,7 @@ function FleetSummary({
                   ],
                   report.bikes.map((b) => [
                     b.code,
-                    b.code.startsWith("E") ? "Elétrica" : "Convencional",
+                    assetLabel(b),
                     b.model,
                     b.status,
                     b.kiosk?.name,
@@ -548,7 +622,7 @@ function FleetSummary({
       )}
       <div className="fleet-kpis">
         <div className="card">
-          <span>Total da frota</span>
+          <span>Total do inventário</span>
           <b>{active.length}</b>
         </div>
         <div className="card">
@@ -560,9 +634,17 @@ function FleetSummary({
           <b>{conventional.length}</b>
         </div>
         <div className="card">
+          <span>Infantis</span>
+          <b>{child.length}</b>
+        </div>
+        <div className="card">
+          <span>Acessórios</span>
+          <b>{accessories.length}</b>
+        </div>
+        <div className="card">
           <span>Disponibilidade</span>
           <b>{rate}%</b>
-          <small>{available} bicicletas disponíveis</small>
+          <small>{available} itens disponíveis</small>
         </div>
         <div className="card alert-kpi">
           <span>Fora de serviço</span>
@@ -575,8 +657,8 @@ function FleetSummary({
           <h2>Por estado</h2>
           <div className="summary-head">
             <span>Estado</span>
-            <span>Elétricas</span>
-            <span>Convencionais</span>
+            <span>Bicicletas</span>
+            <span>Acessórios</span>
             <span>Total</span>
           </div>
           {statuses.map((s) => {
@@ -584,8 +666,8 @@ function FleetSummary({
             return (
               <div className="summary-row" key={s}>
                 <Badge>{s}</Badge>
-                <span>{c.electric}</span>
-                <span>{c.conventional}</span>
+                <span>{c.bicycles}</span>
+                <span>{c.accessories}</span>
                 <b>{c.total}</b>
               </div>
             );
@@ -594,7 +676,7 @@ function FleetSummary({
         <section className="card location-status-card">
           <h2>Por localização e estado</h2>
           <p className="muted">
-            Distribuição atual das bicicletas em cada quiosque ou localização
+            Distribuição atual dos itens em cada quiosque ou localização
             interna.
           </p>
           <div className="table-wrap location-table-wrap">
@@ -616,7 +698,7 @@ function FleetSummary({
                       <td>
                         <b>{k.name}</b>
                         <small className="block-meta">
-                          E: {c.electric} · C: {c.conventional}
+                          Bicicletas: {c.bicycles} · Acessórios: {c.accessories}
                         </small>
                       </td>
                       {statuses.map((s) => (
@@ -656,7 +738,7 @@ export function Fleet({ user }: { user: User }) {
             (b.code + " " + b.model).toLowerCase().includes(q.toLowerCase())) &&
           (!status || b.status === status) &&
           (!kiosk || b.kiosk_id === kiosk) &&
-          (!type || b.code.startsWith(type)),
+          (!type || assetTypeOf(b) === type),
       ) || [],
     [data, q, status, kiosk, type],
   );
@@ -664,15 +746,12 @@ export function Fleet({ user }: { user: User }) {
     <>
       <div className="title">
         <div>
-          <h1>Frota</h1>
-          <p>
-            {list.length} bicicletas · códigos E para elétricas e C para
-            convencionais
-          </p>
+          <h1>Frota e equipamentos</h1>
+          <p>{list.length} itens visíveis</p>
         </div>
         {user.role === "admin" && (
           <button className="primary" onClick={() => setShowAdd(!showAdd)}>
-            Adicionar bicicleta
+            Adicionar item
           </button>
         )}
       </div>
@@ -699,8 +778,11 @@ export function Fleet({ user }: { user: User }) {
         />
         <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">Todos os tipos</option>
-          <option value="E">Elétricas</option>
-          <option value="C">Convencionais</option>
+          {assetOptions.map((x) => (
+            <option key={x.value} value={x.value}>
+              {x.label}
+            </option>
+          ))}
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Todos os estados</option>
@@ -742,7 +824,7 @@ export function Fleet({ user }: { user: User }) {
                 <td>
                   <b>{b.code}</b>
                 </td>
-                <td>{b.code.startsWith("E") ? "Elétrica" : "Convencional"}</td>
+                <td>{assetLabel(b)}</td>
                 <td>{b.model}</td>
                 {canManage ? (
                   <td>
@@ -778,8 +860,12 @@ function RentalSummary({
 }) {
   const open = rentals.filter((r) => r.status === "Em aberto"),
     items = open.flatMap((r) => r.items.filter((i) => !i.returned_at)),
-    electric = items.filter((i) => i.bike?.code.startsWith("E")).length,
-    conventional = items.filter((i) => i.bike?.code.startsWith("C")).length,
+    electric = items.filter((i) => assetTypeOf(i.bike) === "electric").length,
+    conventional = items.filter(
+      (i) => assetTypeOf(i.bike) === "conventional",
+    ).length,
+    child = items.filter((i) => assetTypeOf(i.bike) === "child").length,
+    accessories = items.filter((i) => !isBicycle(i.bike)).length,
     dateKey = (d: string | Date) =>
       new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Lisbon" }).format(
         new Date(d),
@@ -808,8 +894,8 @@ function RentalSummary({
       .flatMap((r) => r.items.filter((i) => !i.returned_at));
     return {
       total: list.length,
-      electric: list.filter((i) => i.bike?.code.startsWith("E")).length,
-      conventional: list.filter((i) => i.bike?.code.startsWith("C")).length,
+      bicycles: list.filter((i) => isBicycle(i.bike)).length,
+      accessories: list.filter((i) => !isBicycle(i.bike)).length,
     };
   };
   return (
@@ -820,7 +906,7 @@ function RentalSummary({
           <b>{open.length}</b>
         </div>
         <div className="card">
-          <span>Bicicletas alugadas</span>
+          <span>Itens atualmente alugados</span>
           <b>{items.length}</b>
         </div>
         <div className="card">
@@ -830,6 +916,14 @@ function RentalSummary({
         <div className="card">
           <span>Convencionais alugadas</span>
           <b>{conventional}</b>
+        </div>
+        <div className="card">
+          <span>Infantis alugadas</span>
+          <b>{child}</b>
+        </div>
+        <div className="card">
+          <span>Acessórios alugados</span>
+          <b>{accessories}</b>
         </div>
         <div className="card period-kpi">
           <span>Concluídos hoje</span>
@@ -849,11 +943,11 @@ function RentalSummary({
         </div>
       </div>
       <section className="card rental-location-summary">
-        <h2>Bicicletas alugadas por quiosque de saída</h2>
+        <h2>Itens alugados por quiosque de saída</h2>
         <div className="summary-head">
           <span>Quiosque</span>
-          <span>Elétricas</span>
-          <span>Convencionais</span>
+          <span>Bicicletas</span>
+          <span>Acessórios</span>
           <span>Total</span>
         </div>
         {kiosks.map((k) => {
@@ -861,8 +955,8 @@ function RentalSummary({
           return (
             <div className="summary-row" key={k.id}>
               <span>{k.name}</span>
-              <span>{c.electric}</span>
-              <span>{c.conventional}</span>
+              <span>{c.bicycles}</span>
+              <span>{c.accessories}</span>
               <b>{c.total}</b>
             </div>
           );
@@ -896,10 +990,9 @@ export function BikeDetail({ user }: { user: User }) {
           <Link className="text" to="/frota">
             ← Voltar à frota
           </Link>
-          <h1>Bicicleta {bike.code}</h1>
+          <h1>Item {bike.code}</h1>
           <p>
-            {bike.code.startsWith("E") ? "Elétrica" : "Convencional"} ·{" "}
-            {bike.model}
+            {assetLabel(bike)} · {bike.model}
           </p>
         </div>
         <Badge>{bike.status}</Badge>
@@ -929,7 +1022,7 @@ export function BikeDetail({ user }: { user: User }) {
           <div className="title section-title">
             <div>
               <h2>Histórico de alugueres</h2>
-              <p>Todos os alugueres em que esta bicicleta foi incluída.</p>
+              <p>Todos os alugueres em que este item foi incluído.</p>
             </div>
           </div>
           <div className="table-wrap">
@@ -1061,8 +1154,7 @@ function RentalCorrection({
     }
   }
   async function removeBike(item: RentalItem) {
-    if (!confirm(`Remover a bicicleta ${item.bike?.code} deste aluguer?`))
-      return;
+    if (!confirm(`Remover o item ${item.bike?.code} deste aluguer?`)) return;
     setBusy(true);
     try {
       await post(`/rentals/${rental.id}/remove-bike`, {
@@ -1101,10 +1193,10 @@ function RentalCorrection({
       </button>
       {open && (
         <div className="correction-panel">
-          <h4>Adicionar bicicleta esquecida</h4>
+          <h4>Adicionar item esquecido</h4>
           <div className="correction-add">
             <select value={bikeId} onChange={(e) => setBikeId(e.target.value)}>
-              <option value="">Selecionar bicicleta disponível…</option>
+              <option value="">Selecionar item disponível…</option>
               {choices.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.code} · {b.model}
@@ -1119,7 +1211,7 @@ function RentalCorrection({
               Adicionar
             </button>
           </div>
-          <h4>Bicicletas deste aluguer</h4>
+          <h4>Itens deste aluguer</h4>
           {rental.items
             .filter((i) => !i.returned_at)
             .map((i) => (
@@ -1135,7 +1227,7 @@ function RentalCorrection({
                   }
                   title={
                     rental.items.filter((x) => !x.returned_at).length <= 1
-                      ? "Não é possível remover a última bicicleta."
+                      ? "Não é possível remover o último item."
                       : ""
                   }
                   onClick={() => removeBike(i)}
@@ -1148,12 +1240,12 @@ function RentalCorrection({
             className="text discrepancy-toggle"
             onClick={() => setShowDiscrepancy(!showDiscrepancy)}
           >
-            A bicicleta não aparece ou os dados estão errados?
+            O item não aparece ou os dados estão errados?
           </button>
           {showDiscrepancy && (
             <div className="discrepancy-form">
               <label>
-                Código da bicicleta
+                Código do item
                 <input
                   value={bikeCode}
                   placeholder="Ex.: E007"
@@ -1164,7 +1256,7 @@ function RentalCorrection({
                 O que está errado?
                 <textarea
                   value={description}
-                  placeholder="Ex.: a bicicleta está no quiosque, mas aparece como alugada."
+                  placeholder="Ex.: o item está no quiosque, mas aparece como alugado."
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </label>
@@ -1211,7 +1303,7 @@ export function Rentals({ user }: { user: User }) {
   }, [data, kiosk, user.usual_kiosk_id]);
   async function start() {
     if (!customer.trim() || !selected.length)
-      return alert("Indique o cliente e selecione pelo menos uma bicicleta.");
+      return alert("Indique o cliente e selecione pelo menos um item.");
     await post("/rentals", {
       customer_ref: customer,
       start_kiosk_id: kiosk,
@@ -1291,7 +1383,7 @@ export function Rentals({ user }: { user: User }) {
             </select>
           </label>
           <fieldset>
-            <legend>Bicicletas disponíveis</legend>
+            <legend>Bicicletas e acessórios disponíveis</legend>
             <div className="bike-picker">
               {data?.available_bikes
                 .filter((b) => b.kiosk_id === kiosk)
@@ -1328,8 +1420,8 @@ export function Rentals({ user }: { user: User }) {
             <div>
               <h2>Devolver {returning.reference}</h2>
               <p>
-                Se estiver tudo bem, basta confirmar. Só escreva nas bicicletas
-                com anomalia.
+                Se estiver tudo bem, basta confirmar. Só escreva nos itens com
+                anomalia.
               </p>
             </div>
             <button className="text" onClick={() => setReturning(null)}>
@@ -1340,7 +1432,7 @@ export function Rentals({ user }: { user: User }) {
             .filter((i) => !i.returned_at)
             .map((i) => (
               <label key={i.id}>
-                Bicicleta {i.bike?.code}
+                {assetLabel(i.bike)} {i.bike?.code}
                 <textarea
                   placeholder="Sem anomalia — deixe em branco. Se houver um problema, descreva-o aqui para abrir um ticket."
                   value={anomalies[i.id] || ""}
@@ -1401,8 +1493,8 @@ export function Rentals({ user }: { user: User }) {
         <section className="card discrepancy-list">
           <h2>Discrepâncias pendentes</h2>
           <p className="muted">
-            Situações em que uma bicicleta não estava disponível ou apresentava
-            dados incorretos no sistema.
+            Situações em que um item não estava disponível ou apresentava dados
+            incorretos no sistema.
           </p>
           {(data?.discrepancies || [])
             .filter((d) => d.status === "Pendente")
@@ -1447,7 +1539,7 @@ export function Rentals({ user }: { user: User }) {
             <tr>
               <th>Referência</th>
               <th>Cliente</th>
-              <th>Bicicletas</th>
+              <th>Itens</th>
               <th>Registado por</th>
               <th>Início</th>
               <th>Fim</th>
@@ -1514,7 +1606,7 @@ export function FaultReport() {
       </div>
       <section className="card form fault-report-form">
         <label>
-          Bicicleta
+          Item
           <select
             value={form.bike_id}
             onChange={(e) => setForm({ ...form, bike_id: e.target.value })}
@@ -1568,7 +1660,7 @@ export function FaultReport() {
             checked={form.usable}
             onChange={(e) => setForm({ ...form, usable: e.target.checked })}
           />{" "}
-          A bicicleta ainda pode ser utilizada
+          O item ainda pode ser utilizado
         </label>
         <label>
           Descrição
@@ -1616,8 +1708,8 @@ function MaintenanceSummary({ faults }: { faults: Fault[] }) {
     const list = faults.filter((f) => f.status === status);
     return {
       total: list.length,
-      electric: list.filter((f) => f.bike?.code.startsWith("E")).length,
-      conventional: list.filter((f) => f.bike?.code.startsWith("C")).length,
+      bicycles: list.filter((f) => isBicycle(f.bike)).length,
+      accessories: list.filter((f) => !isBicycle(f.bike)).length,
     };
   };
   return (
@@ -1628,7 +1720,7 @@ function MaintenanceSummary({ faults }: { faults: Fault[] }) {
           <b>{pending.length}</b>
         </div>
         <div className="card">
-          <span>Bicicletas afetadas</span>
+          <span>Itens afetados</span>
           <b>{affected}</b>
         </div>
         <div className="card">
@@ -1649,11 +1741,11 @@ function MaintenanceSummary({ faults }: { faults: Fault[] }) {
         </div>
       </div>
       <section className="card maintenance-status-summary">
-        <h2>Ocorrências por estado e tipo de bicicleta</h2>
+        <h2>Ocorrências por estado e categoria</h2>
         <div className="summary-head">
           <span>Estado</span>
-          <span>Elétricas</span>
-          <span>Convencionais</span>
+          <span>Bicicletas</span>
+          <span>Acessórios</span>
           <span>Total</span>
         </div>
         {faultStatuses.map((s) => {
@@ -1661,8 +1753,8 @@ function MaintenanceSummary({ faults }: { faults: Fault[] }) {
           return (
             <div className="summary-row" key={s}>
               <Badge>{s}</Badge>
-              <span>{c.electric}</span>
-              <span>{c.conventional}</span>
+              <span>{c.bicycles}</span>
+              <span>{c.accessories}</span>
               <b>{c.total}</b>
             </div>
           );
@@ -1702,7 +1794,7 @@ function FaultUpdateControls({
           </label>
           {status === "Resolvida" && (
             <label>
-              Estado final da bicicleta
+              Estado final do item
               <select
                 value={finalStatus}
                 onChange={(e) => setFinalStatus(e.target.value as BikeStatus)}
@@ -1796,7 +1888,7 @@ export function Faults() {
       {show && (
         <section className="card form">
           <label>
-            Bicicleta
+            Item
             <select
               value={form.bike_id}
               onChange={(e) => setForm({ ...form, bike_id: e.target.value })}
@@ -1850,7 +1942,7 @@ export function Faults() {
               checked={form.usable}
               onChange={(e) => setForm({ ...form, usable: e.target.checked })}
             />{" "}
-            A bicicleta ainda pode ser utilizada
+            O item ainda pode ser utilizado
           </label>
           <label>
             Descrição
@@ -1875,7 +1967,7 @@ export function Faults() {
         <table className="fault-table">
           <thead>
             <tr>
-              <th>Bicicleta</th>
+              <th>Item</th>
               <th>Categoria</th>
               <th>Gravidade</th>
               <th>Estado</th>
@@ -1939,7 +2031,7 @@ export function Reports() {
       r.reference,
       r.customer_ref,
       i.bike?.code,
-      i.bike?.code?.startsWith("E") ? "Elétrica" : "Convencional",
+      assetLabel(i.bike),
       r.start_kiosk?.name,
       i.return_kiosk?.name,
       fmt(r.started_at),
@@ -1952,7 +2044,7 @@ export function Reports() {
   );
   const faultRows = faults.map((f) => [
     f.bike?.code,
-    f.bike?.code?.startsWith("E") ? "Elétrica" : "Convencional",
+    assetLabel(f.bike),
     f.origin,
     f.category,
     f.description,
@@ -1999,7 +2091,7 @@ export function Reports() {
           <div className="title report-title">
             <div>
               <h2>Alugueres concluídos</h2>
-              <p>Uma linha por bicicleta devolvida.</p>
+              <p>Uma linha por item devolvido.</p>
             </div>
             <button
               className="primary"
@@ -2009,7 +2101,7 @@ export function Reports() {
                   [
                     "Referência",
                     "Cliente",
-                    "Bicicleta",
+                    "Item",
                     "Tipo",
                     "Quiosque de saída",
                     "Quiosque de devolução",
@@ -2033,7 +2125,7 @@ export function Reports() {
                 <tr>
                   <th>Referência</th>
                   <th>Cliente</th>
-                  <th>Bicicleta</th>
+                  <th>Item</th>
                   <th>Tipo</th>
                   <th>Saída</th>
                   <th>Devolução</th>
@@ -2052,11 +2144,7 @@ export function Reports() {
                       </td>
                       <td>{r.customer_ref}</td>
                       <td>{i.bike?.code}</td>
-                      <td>
-                        {i.bike?.code?.startsWith("E")
-                          ? "Elétrica"
-                          : "Convencional"}
-                      </td>
+                      <td>{assetLabel(i.bike)}</td>
                       <td>{r.start_kiosk?.name}</td>
                       <td>{i.return_kiosk?.name || "—"}</td>
                       <td>{fmt(r.started_at)}</td>
@@ -2094,7 +2182,7 @@ export function Reports() {
                 exportCSV(
                   "avarias.csv",
                   [
-                    "Bicicleta",
+                    "Item",
                     "Tipo",
                     "Origem",
                     "Categoria",
@@ -2117,7 +2205,7 @@ export function Reports() {
             <table className="wide-table">
               <thead>
                 <tr>
-                  <th>Bicicleta</th>
+                  <th>Item</th>
                   <th>Tipo</th>
                   <th>Origem</th>
                   <th>Categoria</th>
@@ -2136,11 +2224,7 @@ export function Reports() {
                     <td>
                       <b>{f.bike?.code}</b>
                     </td>
-                    <td>
-                      {f.bike?.code?.startsWith("E")
-                        ? "Elétrica"
-                        : "Convencional"}
-                    </td>
+                    <td>{assetLabel(f.bike)}</td>
                     <td>{f.origin}</td>
                     <td>{f.category}</td>
                     <td>{f.description}</td>

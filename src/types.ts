@@ -5,6 +5,13 @@ export type BikeStatus =
   | "Avariada"
   | "Em manutenção"
   | "Indisponível";
+export type AssetType =
+  | "electric"
+  | "conventional"
+  | "child"
+  | "helmet"
+  | "lock"
+  | "stroller";
 export interface User {
   id: string;
   full_name: string;
@@ -22,6 +29,7 @@ export interface Kiosk {
 export interface Bike {
   id: string;
   code: string;
+  asset_type: AssetType;
   model: string;
   photo_url?: string;
   kiosk_id: string;
@@ -91,6 +99,8 @@ export interface DailyClosure {
   bike_count: number;
   electric_count: number;
   conventional_count: number;
+  child_count: number;
+  accessory_count: number;
   card_total: number;
   receipt_path?: string;
   receipt_name?: string;

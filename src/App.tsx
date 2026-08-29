@@ -208,7 +208,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
             src="/parques-tejo-logo.png"
             alt="Parques Tejo"
           />
-          <strong>Frota de bicicletas</strong>
+          <strong>Frota e equipamentos</strong>
         </div>
         <div>
           <span className="user-name">{user.full_name}</span>

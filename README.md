@@ -46,6 +46,8 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 - Fecho diário integrado, com vigilante e quiosque pré-preenchidos, contagem automática de alugueres e bicicletas por tipologia, rascunho, submissão, talão privado e observações.
 - Consulta global, filtros, exportação CSV e reabertura de fechos para administradores.
 - Correção de alugueres em aberto, com adição ou remoção de bicicletas e comunicação de discrepâncias.
+- Inventário unificado de bicicletas elétricas, convencionais e infantis, capacetes, cadeados e carrinhos de bebé.
+- Vista operacional dos funcionários limitada aos itens localizados nos quiosques de aluguer.
 - Interface responsiva e em português de Portugal.
 - Seed com os dois quiosques e bicicletas 001–020.
 
@@ -62,6 +64,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/005_maintenance_role.sql`
    - `supabase/migrations/006_daily_closures.sql`
    - `supabase/migrations/007_rental_corrections.sql`
+   - `supabase/migrations/008_children_and_accessories.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:

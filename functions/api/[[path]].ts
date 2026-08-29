@@ -242,7 +242,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204 });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.4.1",
+        version: "1.5.0",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -366,9 +366,9 @@ export const onRequest: PagesFunction<Env> = async ({
       const todayLisbon = new Intl.DateTimeFormat("sv-SE", {
         timeZone: "Europe/Lisbon",
       }).format(new Date());
-      const [bikes, kiosks, rentals, faults, returns, dailyClosure] =
+      const [allBikes, allKiosks, rentals, faults, returns, dailyClosure] =
         await Promise.all([
-        db(ctx, "bikes?active=eq.true&select=id,code,status,kiosk_id"),
+        db(ctx, "bikes?active=eq.true&select=id,code,asset_type,status,kiosk_id"),
         db(ctx, "kiosks?active=eq.true&select=*"),
         db(ctx, `rentals?status=eq.Em%20aberto${own}&select=id`),
         db(
@@ -385,7 +385,10 @@ export const onRequest: PagesFunction<Env> = async ({
               ctx,
               `daily_closures?report_date=eq.${q(todayLisbon)}&user_id=eq.${q(ctx.user.id)}&select=id,status,kiosk:kiosks(name)&limit=1`,
             ),
-      ]);
+        ]);
+      const kiosks=ctx.user.role==='funcionario'?allKiosks.filter((k:any)=>k.allows_rentals):allKiosks;
+      const visibleKioskIds=new Set(kiosks.map((k:any)=>k.id));
+      const bikes=ctx.user.role==='funcionario'?allBikes.filter((b:any)=>visibleKioskIds.has(b.kiosk_id)):allBikes;
       const counts: any = {},
         counts_by_type: any = {};
       bikes.forEach((b: any) => {
@@ -396,32 +399,31 @@ export const onRequest: PagesFunction<Env> = async ({
             total: 0,
             electric: 0,
             conventional: 0,
+            child: 0,
+            helmet: 0,
+            lock: 0,
+            stroller: 0,
           });
         row.total++;
-        if (String(b.code || "").startsWith("E")) row.electric++;
-        else if (String(b.code || "").startsWith("C")) row.conventional++;
+        if (row[b.asset_type] !== undefined) row[b.asset_type]++;
       });
       const rentedBikes = bikes.filter((b: any) => b.status === "Alugada"),
         rented = {
           total: rentedBikes.length,
-          electric: rentedBikes.filter((b: any) =>
-            String(b.code || "").startsWith("E"),
-          ).length,
-          conventional: rentedBikes.filter((b: any) =>
-            String(b.code || "").startsWith("C"),
-          ).length,
+          electric: rentedBikes.filter((b: any) => b.asset_type === "electric").length,
+          conventional: rentedBikes.filter((b: any) => b.asset_type === "conventional").length,
+          child: rentedBikes.filter((b: any) => b.asset_type === "child").length,
+          accessories: rentedBikes.filter((b: any) => ["helmet","lock","stroller"].includes(b.asset_type)).length,
           by_kiosk: kiosks.map((k: any) => {
             const list = rentedBikes.filter((b: any) => b.kiosk_id === k.id);
             return {
               id: k.id,
               name: k.name,
               total: list.length,
-              electric: list.filter((b: any) =>
-                String(b.code || "").startsWith("E"),
-              ).length,
-              conventional: list.filter((b: any) =>
-                String(b.code || "").startsWith("C"),
-              ).length,
+              electric: list.filter((b: any) => b.asset_type === "electric").length,
+              conventional: list.filter((b: any) => b.asset_type === "conventional").length,
+              child: list.filter((b: any) => b.asset_type === "child").length,
+              accessories: list.filter((b: any) => ["helmet","lock","stroller"].includes(b.asset_type)).length,
             };
           }),
         };
@@ -430,7 +432,7 @@ export const onRequest: PagesFunction<Env> = async ({
         counts_by_type,
         rented:
           ctx.user.role === "manutencao"
-            ? { total: 0, electric: 0, conventional: 0, by_kiosk: [] }
+            ? { total: 0, electric: 0, conventional: 0, child: 0, accessories: 0, by_kiosk: [] }
             : rented,
         kiosks: kiosks.map((k: any) => ({
           ...k,
@@ -455,10 +457,12 @@ export const onRequest: PagesFunction<Env> = async ({
       });
     }
     if (route === "/bikes" && request.method === "GET") {
-      const [bikes, kiosks] = await Promise.all([
-        db(ctx, "bikes?select=*,kiosk:kiosks(*)&order=code"),
-        db(ctx, "kiosks?active=eq.true&select=*&order=name"),
-      ]);
+      const kiosks=await db(ctx,`kiosks?active=eq.true${ctx.user.role==='funcionario'?'&allows_rentals=eq.true':''}&select=*&order=name`);
+      const kioskIds=kiosks.map((k:any)=>k.id);
+      const bikeQuery=ctx.user.role==='funcionario'
+        ? `bikes?active=eq.true&kiosk_id=in.(${kioskIds.join(',')})&select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at,kiosk:kiosks(id,name,allows_rentals)&order=code`
+        : "bikes?select=*,kiosk:kiosks(*)&order=code";
+      const bikes=ctx.user.role==='funcionario'&&!kioskIds.length?[]:await db(ctx,bikeQuery);
       return json({ bikes, kiosks });
     }
     if (route === "/bikes/report" && request.method === "GET") {
@@ -495,20 +499,17 @@ export const onRequest: PagesFunction<Env> = async ({
     }
     if (route === "/bikes" && request.method === "POST") {
       if (!allow(ctx, "admin"))
-        return err("Apenas administradores podem criar bicicletas.", 403);
-      const b = await body(request),
-        type = b.type === "E" ? "E" : "C",
-        number = String(b.number || b.code || "").replace(/^[EC]/i, "");
+        return err("Apenas administradores podem criar itens de inventário.", 403);
+      const b = await body(request),types:any={electric:{prefix:'E',model:'Bicicleta elétrica'},conventional:{prefix:'C',model:'Bicicleta convencional'},child:{prefix:'I',model:'Bicicleta infantil'},helmet:{prefix:'CAP',model:'Capacete'},lock:{prefix:'CAD',model:'Cadeado'},stroller:{prefix:'CAR',model:'Carrinho de bebé'}},assetType=types[b.asset_type]?b.asset_type:(b.type==='E'?'electric':'conventional'),definition=types[assetType],number=String(b.number||b.code||'').replace(/^[A-Z]+/i,'');
       if (!/^\d{1,6}$/.test(number))
         return err("Indique um número válido para a bicicleta.");
-      const code = type + number.padStart(3, "0");
+      const code = definition.prefix + number.padStart(3, "0");
       const rows = await db(ctx, "bikes", {
         method: "POST",
         body: JSON.stringify({
           code,
-          model:
-            b.model ||
-            (type === "E" ? "Bicicleta elétrica" : "Bicicleta convencional"),
+          model:b.model||definition.model,
+          asset_type:assetType,
           kiosk_id: b.kiosk_id,
           status: "Disponível",
         }),
@@ -624,7 +625,7 @@ export const onRequest: PagesFunction<Env> = async ({
         ),
         db(
           ctx,
-          "bikes?active=eq.true&status=eq.Disponível&select=*,kiosk:kiosks(*)&order=code",
+          "bikes?active=eq.true&status=eq.Disponível&select=*,kiosk:kiosks!inner(*)&kiosk.allows_rentals=eq.true&order=code",
         ),
         db(
           ctx,
@@ -833,10 +834,9 @@ export const onRequest: PagesFunction<Env> = async ({
       return json(result);
     }
     if (route === "/faults/report-options" && request.method === "GET") {
-      const bikes = await db(
-        ctx,
-        "bikes?active=eq.true&select=id,code,model,kiosk_id&order=code",
-      );
+      const rentalKiosks=ctx.user.role==='funcionario'?await db(ctx,'kiosks?active=eq.true&allows_rentals=eq.true&select=id'):[];
+      const kioskIds=rentalKiosks.map((k:any)=>k.id),kioskFilter=ctx.user.role==='funcionario'?`&kiosk_id=in.(${kioskIds.join(',')})`:'';
+      const bikes = ctx.user.role==='funcionario'&&!kioskIds.length?[]:await db(ctx,`bikes?active=eq.true${kioskFilter}&select=id,code,asset_type,model,kiosk_id&order=code`);
       return json({ bikes });
     }
     if (route === "/faults" && request.method === "GET") {
@@ -1072,6 +1072,8 @@ export const onRequest: PagesFunction<Env> = async ({
           bike_count: 0,
           electric_count: 0,
           conventional_count: 0,
+          child_count: 0,
+          accessory_count: 0,
         },
       });
     }
@@ -1141,6 +1143,8 @@ export const onRequest: PagesFunction<Env> = async ({
         bike_count: Number(stats?.bike_count || 0),
         electric_count: Number(stats?.electric_count || 0),
         conventional_count: Number(stats?.conventional_count || 0),
+        child_count: Number(stats?.child_count || 0),
+        accessory_count: Number(stats?.accessory_count || 0),
         card_total: cardTotal,
         receipt_path: receiptPath,
         receipt_name: receiptName,

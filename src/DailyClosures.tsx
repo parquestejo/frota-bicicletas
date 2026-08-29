@@ -30,6 +30,8 @@ function exportCSV(rows: DailyClosure[]) {
     "Bicicletas",
     "Elétricas",
     "Convencionais",
+    "Infantis",
+    "Acessórios",
     "Multibanco",
     "Estado",
     "Submetido em",
@@ -44,6 +46,8 @@ function exportCSV(rows: DailyClosure[]) {
     x.bike_count,
     x.electric_count,
     x.conventional_count,
+    x.child_count,
+    x.accessory_count,
     Number(x.card_total).toFixed(2),
     x.status,
     dateTime(x.submitted_at),
@@ -74,12 +78,16 @@ type Stats = {
   bike_count: number;
   electric_count: number;
   conventional_count: number;
+  child_count: number;
+  accessory_count: number;
 };
 const emptyStats: Stats = {
   rental_count: 0,
   bike_count: 0,
   electric_count: 0,
   conventional_count: 0,
+  child_count: 0,
+  accessory_count: 0,
 };
 
 export function DailyClosures({ user }: { user: User }) {
@@ -254,6 +262,14 @@ export function DailyClosures({ user }: { user: User }) {
             <span>Convencionais</span>
             <b>{stats.conventional_count}</b>
           </div>
+          <div>
+            <span>Infantis</span>
+            <b>{stats.child_count}</b>
+          </div>
+          <div>
+            <span>Acessórios</span>
+            <b>{stats.accessory_count}</b>
+          </div>
         </div>
         <div className="form-grid closure-manual-fields">
           <label>
@@ -370,7 +386,8 @@ export function DailyClosures({ user }: { user: User }) {
               {user.role === "admin" && <th>Vigilante</th>}
               <th>Alugueres</th>
               <th>Bicicletas</th>
-              <th>E / C</th>
+              <th>E / C / I</th>
+              <th>Acessórios</th>
               <th>Multibanco</th>
               <th>Estado</th>
               <th>Talão</th>
@@ -394,8 +411,10 @@ export function DailyClosures({ user }: { user: User }) {
                   <td>{x.rental_count}</td>
                   <td>{x.bike_count}</td>
                   <td>
-                    {x.electric_count} / {x.conventional_count}
+                    {x.electric_count} / {x.conventional_count} /{" "}
+                    {x.child_count}
                   </td>
+                  <td>{x.accessory_count}</td>
                   <td>{money(x.card_total)}</td>
                   <td>
                     <span
@@ -454,7 +473,7 @@ export function DailyClosures({ user }: { user: User }) {
               ))
             ) : (
               <tr>
-                <td colSpan={user.role === "admin" ? 10 : 8}>
+                <td colSpan={user.role === "admin" ? 11 : 9}>
                   Sem fechos registados.
                 </td>
               </tr>
