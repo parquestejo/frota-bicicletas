@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-
-const api = readFileSync(
-  new URL("../functions/api/[[path]].ts", import.meta.url),
-  "utf8",
-);
+import { apiSource as api } from "./project-source";
 const view = readFileSync(
   new URL("../src/AdminDashboard.tsx", import.meta.url),
   "utf8",
@@ -25,6 +21,7 @@ describe("dashboard administrativo", () => {
   it("mostra os três últimos fechos de cada quiosque", () => {
     expect(api).toContain("recentClosureGroups");
     expect(api).toContain("&limit=3");
+    expect(api).toContain("String(b.report_date||'').localeCompare");
     expect(view).toContain("3 por quiosque");
   });
   it("limita o inventário aos itens disponíveis e alugados", () => {

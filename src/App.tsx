@@ -22,6 +22,7 @@ import {
 import { NewRental } from "./NewRental";
 import { Activity } from "./Activity";
 import { DailyClosures } from "./DailyClosures";
+import { FeedbackProvider } from "./Feedback";
 
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [username, setUsername] = useState("");
@@ -311,9 +312,13 @@ export default function App() {
   }, []);
   if (location.pathname === "/configurar") return <Setup />;
   if (user === undefined) return <div className="loading">A carregar…</div>;
-  return user ? (
-    <Layout user={user} onLogout={() => setUser(null)} />
-  ) : (
-    <Login onLogin={setUser} />
+  return (
+    <FeedbackProvider>
+      {user ? (
+        <Layout user={user} onLogout={() => setUser(null)} />
+      ) : (
+        <Login onLogin={setUser} />
+      )}
+    </FeedbackProvider>
   );
 }

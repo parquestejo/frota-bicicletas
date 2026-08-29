@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, patch, post } from "./api";
 import type { DailyClosure, Kiosk, User } from "./types";
+import { useFeedback } from "./Feedback";
 
 const todayLisbon = () =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Lisbon" }).format(
@@ -18,8 +19,10 @@ const dateTime = (value?: string) =>
         timeZone: "Europe/Lisbon",
       }).format(new Date(value))
     : "—";
-const csvCell = (value: unknown) =>
-  '"' + String(value ?? "").replace(/"/g, '""') + '"';
+const csvCell = (raw: unknown) => {
+  const value = String(raw ?? ""), safe = /^[=+\-@]/.test(value) ? "'" + value : value;
+  return '"' + safe.replace(/"/g, '""') + '"';
+};
 function exportCSV(rows: DailyClosure[]) {
   const headers = [
     "Data",
@@ -91,6 +94,7 @@ const emptyStats: Stats = {
 };
 
 export function DailyClosures({ user }: { user: User }) {
+  const { notify } = useFeedback();
   const [data, setData] = useState<{
       closures: DailyClosure[];
       kiosks: Kiosk[];
@@ -105,6 +109,7 @@ export function DailyClosures({ user }: { user: User }) {
     [stats, setStats] = useState<Stats>(emptyStats),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState(""),
+    [reopenId, setReopenId] = useState(""),
     [kioskFilter, setKioskFilter] = useState("");
   async function load() {
     try {
@@ -184,10 +189,11 @@ export function DailyClosures({ user }: { user: User }) {
       });
       await load();
       setReceipt(null);
-      alert(
+      notify(
         status === "Submetido"
           ? "Fecho diário submetido com sucesso."
           : "Rascunho guardado.",
+        "success",
       );
     } catch (e) {
       setError((e as Error).message);
@@ -445,25 +451,17 @@ export function DailyClosures({ user }: { user: User }) {
                   {user.role === "admin" && (
                     <td>
                       {x.status === "Submetido" ? (
-                        <button
-                          className="text"
-                          onClick={async () => {
-                            if (
-                              !confirm(
-                                "Reabrir este fecho para permitir correções?",
-                              )
-                            )
-                              return;
+                        reopenId === x.id ? <span className="inline-confirm">
+                          <button className="small-button" onClick={async () => {
                             try {
                               await patch(`/daily-closures/${x.id}/reopen`, {});
+                              setReopenId("");
                               await load();
-                            } catch (e) {
-                              alert((e as Error).message);
-                            }
-                          }}
-                        >
-                          Reabrir
-                        </button>
+                              notify("Fecho reaberto para correção.", "success");
+                            } catch (e) { notify((e as Error).message, "error"); }
+                          }}>Confirmar</button>
+                          <button className="text" onClick={() => setReopenId("")}>Cancelar</button>
+                        </span> : <button className="text" onClick={() => setReopenId(x.id)}>Reabrir</button>
                       ) : (
                         "—"
                       )}

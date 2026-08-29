@@ -1,5 +1,13 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
+## Versão 1.8.1
+
+- Interface sem caixas nativas bloqueantes: validações, confirmações e resultados aparecem dentro da aplicação.
+- Criação de utilizadores e redefinição de palavras-passe através de formulários com confirmação dupla.
+- Frontend dividido por áreas funcionais em `src/pages/`.
+- Backend dividido entre utilitários partilhados e rotas de inventário, alugueres, avarias/utilizadores e fechos/atividade.
+- Testes adaptados à estrutura modular e verificação automática de que não regressam `alert()`, `prompt()` ou `confirm()`.
+
 Aplicação interna para os Quiosques de Mobilidade da Praia da Torre e do Terrapleno de Algés. O frontend é React/TypeScript, a API corre em Cloudflare Pages Functions e os dados são guardados em PostgreSQL/Supabase.
 
 **Se não tem experiência técnica, comece pelo ficheiro `GUIA_INSTALACAO_SIMPLES.md`.**
@@ -25,7 +33,7 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 | `rentals` / `rental_items` | Aluguer e bicicletas incluídas; suporta devolução parcial |
 | `faults` | Ocorrências de avaria |
 | `maintenance_interventions` | Uma ou várias intervenções por avaria |
-| `audit_log` | Registo imutável das ações críticas |
+| `audit_log` | Rastreio das ações críticas |
 | `login_attempts` | Limitação de tentativas repetidas de autenticação |
 | `daily_closures` | Fechos diários, totais automáticos, receita declarada e referência ao talão privado |
 | `rental_discrepancies` | Divergências comunicadas durante a correção de alugueres |
@@ -50,11 +58,11 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 - Vista operacional dos funcionários limitada aos itens localizados nos quiosques de aluguer, incluindo todos os respetivos estados; Armazém, Evento e outras localizações internas ficam excluídos.
 - Contacto opcional do cliente disponível apenas durante o aluguer em aberto e eliminado automaticamente na devolução completa, sem integração no histórico ou na auditoria.
 - Página própria e simplificada para iniciar um novo aluguer, separada dos resumos, alugueres em aberto e histórico de devoluções.
-- Migração `009_transient_contacts_and_accessories.sql` para completar automaticamente cada quiosque de aluguer até 8 capacetes e 2 cadeados.
+- Os acessórios são geridos explicitamente no inventário; não existe reposição automática por quiosque.
 - Dashboard administrativo com atividade diária, semanal e mensal, receita declarada, os três últimos relatórios de final de dia de cada quiosque, inventário operacional disponível/alugado, ocorrências, observações, comparação temporal e exportação CSV.
 - Matriz da frota por localização, tipologia e estado, permitindo consultar diretamente quantas bicicletas elétricas, convencionais e infantis e quantos acessórios existem em cada situação.
 - Interface responsiva e em português de Portugal.
-- Seed com os dois quiosques e bicicletas 001–020.
+- Seed de instalação com os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 ## Instalação local
 
@@ -72,6 +80,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/008_children_and_accessories.sql`
    - `supabase/migrations/009_transient_contacts_and_accessories.sql`
    - `supabase/migrations/010_rental_concurrency.sql`
+   - `supabase/migrations/011_inventory_fault_integrity.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -82,6 +91,12 @@ npx wrangler pages dev --proxy 5173 -- npm run dev
 ```
 
 Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev dist --port 8788` para a API, ajustando o proxy do Vite se necessário.
+
+### Atualização de uma instalação existente
+
+Se a aplicação já está instalada e as migrações `001–010` foram executadas, execute apenas `supabase/migrations/011_inventory_fault_integrity.sql` antes de publicar este código. Não volte a executar o `seed` nem as migrações anteriores.
+
+A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 
 ## Primeiro administrador
 
@@ -101,8 +116,8 @@ Depois de confirmar o acesso, remova `BOOTSTRAP_TOKEN` das variáveis locais e d
 1. Coloque o projeto num repositório Git privado.
 2. No Cloudflare Pages, escolha esse repositório.
 3. Defina o comando de build como `npm run build` e a pasta de saída como `dist`.
-4. Em **Settings → Environment variables**, configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `APP_ORIGIN` e, apenas no primeiro arranque, `BOOTSTRAP_TOKEN`.
-5. Não defina `COOKIE_SECURE=false` em produção. Use sempre o domínio HTTPS do Pages em `APP_ORIGIN`.
+4. Em **Settings → Environment variables**, configure `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (ou a chave antiga `SUPABASE_SERVICE_ROLE_KEY`) e, apenas no primeiro arranque, `BOOTSTRAP_TOKEN`.
+5. Não defina `COOKIE_SECURE=false` em produção.
 6. Publique, crie o administrador pelo endpoint `/api/bootstrap` e remova imediatamente `BOOTSTRAP_TOKEN`.
 
 Os planos gratuitos eram adequados à arquitetura à data de preparação, mas os limites e termos dos fornecedores podem mudar e devem ser confirmados antes da publicação institucional.
@@ -146,11 +161,11 @@ INTEGRATION_TEST_CONFIRMATION="TEST_DATABASE_CAN_BE_CLEARED" \
 npm run test:integration
 ```
 
-Esta suite chama as funções SQL reais e verifica dois alugueres simultâneos do mesmo artigo, devoluções simultâneas e a eliminação do contacto. Nunca utilize credenciais de produção: os testes criam e eliminam registos.
+Esta suite chama as funções SQL reais e verifica alugueres simultâneos, devoluções concorrentes, eliminação do contacto, atualização transacional de avarias e proteção quando existe outra avaria pendente. Nunca utilize credenciais de produção: os testes criam e eliminam registos.
 
 ## Segurança e operação
 
-- Gere `SESSION_SECRET` e `BOOTSTRAP_TOKEN` com pelo menos 32 bytes aleatórios.
+- Gere o `BOOTSTRAP_TOKEN` com pelo menos 32 bytes aleatórios e remova-o depois da configuração inicial.
 - Rode a chave `service_role` se esta for exposta e revogue todas as sessões.
 - Reveja periodicamente utilizadores ativos e o `audit_log`.
 - Configure retenção/anonimização dos nomes de clientes segundo a política interna. A coluna `customer_ref` pode ser substituída por `Anonimizado` pelo administrador sem remover as métricas do aluguer; deve ser acrescentado um botão específico quando a política de retenção estiver definida.
@@ -167,9 +182,8 @@ Esta suite chama as funções SQL reais e verifica dois alugueres simultâneos d
 ## Evoluções futuras — não implementadas
 
 - Upload privado de fotografias e documentos.
-- Ecrã detalhado da bicicleta com cronologia agregada.
 - Formulário completo para intervenções e custos de manutenção.
 - Anonimização automática por prazo de retenção definido.
-- Exportações CSV/PDF e indicadores estatísticos.
+- Exportações em PDF.
 - Notificações externas e reservas.
 - Migração para servidor próprio mantendo PostgreSQL e a mesma API.

@@ -1,19 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { apiSource as api, pageSource as pages } from "./project-source";
 
 const migration = readFileSync(
   new URL(
     "../supabase/migrations/009_transient_contacts_and_accessories.sql",
     import.meta.url,
   ),
-  "utf8",
-);
-const api = readFileSync(
-  new URL("../functions/api/[[path]].ts", import.meta.url),
-  "utf8",
-);
-const pages = readFileSync(
-  new URL("../src/pages.tsx", import.meta.url),
   "utf8",
 );
 const newRental = readFileSync(
@@ -52,15 +45,10 @@ describe("contacto temporário do cliente", () => {
   });
 });
 
-describe("inventário automático de acessórios", () => {
-  it("completa cada quiosque até oito capacetes", () => {
-    expect(migration).toContain("if current_count < 8");
-    expect(migration).toContain("'Capacete','helmet'");
+describe("inventário de acessórios", () => {
+  it("não cria nem repõe automaticamente acessórios por quiosque", () => {
+    expect(migration).not.toContain("current_count < 8");
+    expect(migration).not.toContain("current_count < 2");
+    expect(migration).not.toContain("Completa o inventário");
   });
-  it("completa cada quiosque até dois cadeados", () => {
-    expect(migration).toContain("if current_count < 2");
-    expect(migration).toContain("'Cadeado','lock'");
-  });
-  it("ignora armazém, evento e outras localizações internas", () =>
-    expect(migration).toContain("allows_rentals=true"));
 });

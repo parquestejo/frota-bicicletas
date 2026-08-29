@@ -70,6 +70,12 @@
 .fault-age{display:block;margin-top:.3rem;color:#9d1c1c;font-weight:700}
 .summary-tools{display:flex;justify-content:flex-end;margin-bottom:.75rem}
 .inline-edit .fault-reason{grid-column:1/-1;min-height:38px;padding:.5rem;border-color:#b33b32}
+.inventory-edit-details{grid-column:1/-1;padding:.65rem;border:1px solid var(--line);border-radius:7px;background:#faf9f6}
+.inventory-edit-details summary{cursor:pointer;font-weight:700;color:#78500d}
+.inventory-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:.65rem;margin-top:.5rem}
+.inventory-edit-grid label{margin:.25rem 0}
+.inventory-active{align-self:end;min-height:44px}
+@media(max-width:800px){.inventory-edit-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.date-range{align-items:stretch}.date-range label{width:100%}.summary-tools button{width:100%}}
 @media(max-width:800px){.header-logo{width:108px;height:36px}}
 @media(max-width:800px){.form-grid{grid-template-columns:1fr}.report-title{flex-direction:column}.report-title button{width:100%}}

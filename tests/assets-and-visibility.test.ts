@@ -1,19 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { apiSource as api, pageSource as pages } from "./project-source";
 
 const migration = readFileSync(
   new URL(
     "../supabase/migrations/008_children_and_accessories.sql",
     import.meta.url,
   ),
-  "utf8",
-);
-const api = readFileSync(
-  new URL("../functions/api/[[path]].ts", import.meta.url),
-  "utf8",
-);
-const pages = readFileSync(
-  new URL("../src/pages.tsx", import.meta.url),
   "utf8",
 );
 

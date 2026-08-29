@@ -33,7 +33,10 @@ const delta = (current: number, previous: number) =>
       ? "Sem alteração"
       : `+${current}`
     : `${current >= previous ? "+" : ""}${Math.round(((current - previous) / previous) * 100)}%`;
-const csv = (v: unknown) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+const csv = (v: unknown) => {
+  const value = String(v ?? ""), safe = /^[=+\-@]/.test(value) ? "'" + value : value;
+  return '"' + safe.replace(/"/g, '""') + '"';
+};
 function exportManagement(data: ManagementData) {
   const rows: unknown[][] = [
     ["Área", "Indicador", "Período atual", "Período anterior", "Variação"],

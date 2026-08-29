@@ -44,6 +44,7 @@ const ids: Record<string, string[]> = {
 let kioskId = "";
 let userId = "";
 let bikeIds: string[] = [];
+let bikeCodes: string[] = [];
 
 async function insert(table: string, body: unknown) {
   const result = await request(table, {
@@ -100,6 +101,7 @@ describe.skipIf(!enabled)("alugueres contra PostgreSQL real", () => {
       active: true,
     })));
     bikeIds = bikes.map((bike: { id: string }) => bike.id);
+    bikeCodes = bikes.map((bike: { code: string }) => bike.code);
     ids.bikes.push(...bikeIds);
   });
 
@@ -112,9 +114,17 @@ describe.skipIf(!enabled)("alugueres contra PostgreSQL real", () => {
     }
     if (ids.bikes.length) {
       const bikeFilter = ids.bikes.join(",");
+      const faults = await request(`faults?bike_id=in.(${bikeFilter})&select=id`);
+      if (faults.body?.length) {
+        const faultFilter = faults.body.map((fault: { id: string }) => fault.id).join(",");
+        await request(`maintenance_interventions?fault_id=in.(${faultFilter})`, { method: "DELETE" });
+        await request(`faults?id=in.(${faultFilter})`, { method: "DELETE" });
+      }
       await request(`bike_status_history?bike_id=in.(${bikeFilter})`, { method: "DELETE" });
       await request(`bikes?id=in.(${bikeFilter})`, { method: "DELETE" });
     }
+    if (ids.users.length)
+      await request(`audit_log?user_id=in.(${ids.users.join(",")})`, { method: "DELETE" });
     if (ids.users.length)
       await request(`users?id=in.(${ids.users.join(",")})`, { method: "DELETE" });
     if (ids.kiosks.length)
@@ -165,5 +175,78 @@ describe.skipIf(!enabled)("alugueres contra PostgreSQL real", () => {
       status: "Concluído",
       customer_contact: null,
     });
+  });
+
+  it("atualiza frota, avaria e intervenção numa operação coerente", async () => {
+    const marked = await request("rpc/update_inventory_item", {
+      method: "POST",
+      body: JSON.stringify({
+        p_bike_id: bikeIds[0],
+        p_code: bikeCodes[0],
+        p_asset_type: "electric",
+        p_model: "Bicicleta de teste",
+        p_status: "Avariada",
+        p_kiosk_id: kioskId,
+        p_active: true,
+        p_user_id: userId,
+        p_fault_description: "Teste de integridade",
+      }),
+    });
+    expect(marked.response.status, JSON.stringify(marked.body)).toBeLessThan(300);
+
+    const faults = await request(
+      `faults?bike_id=eq.${bikeIds[0]}&status=eq.Aberta&select=id`,
+    );
+    expect(faults.body).toHaveLength(1);
+    const faultId = faults.body[0].id;
+
+    const resolved = await request("rpc/update_fault", {
+      method: "POST",
+      body: JSON.stringify({
+        p_fault_id: faultId,
+        p_status: "Resolvida",
+        p_final_bike_status: "Disponível",
+        p_user_id: userId,
+        p_note: "Reparação de teste",
+      }),
+    });
+    expect(resolved.response.status, JSON.stringify(resolved.body)).toBeLessThan(300);
+    const [bike, interventions] = await Promise.all([
+      request(`bikes?id=eq.${bikeIds[0]}&select=status`),
+      request(`maintenance_interventions?fault_id=eq.${faultId}&select=id`),
+    ]);
+    expect(bike.body[0].status).toBe("Disponível");
+    expect(interventions.body).toHaveLength(1);
+  });
+
+  it("não liberta um item enquanto existir outra avaria pendente", async () => {
+    const createFault = (description: string) => request("rpc/create_fault", {
+      method: "POST",
+      body: JSON.stringify({
+        p_bike_id: bikeIds[0],
+        p_origin: "comunicada diretamente",
+        p_category: "outra",
+        p_description: description,
+        p_severity: "Média",
+        p_usable: false,
+        p_user_id: userId,
+      }),
+    });
+    const first = await createFault("Primeira avaria");
+    const second = await createFault("Segunda avaria");
+    expect(first.response.ok && second.response.ok).toBe(true);
+
+    const resolved = await request("rpc/update_fault", {
+      method: "POST",
+      body: JSON.stringify({
+        p_fault_id: first.body.id,
+        p_status: "Resolvida",
+        p_final_bike_status: "Disponível",
+        p_user_id: userId,
+        p_note: "Primeira reparada",
+      }),
+    });
+    expect(resolved.response.ok).toBe(false);
+    expect(JSON.stringify(resolved.body)).toContain("other_open_faults");
   });
 });

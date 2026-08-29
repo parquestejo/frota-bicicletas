@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-
-const source = readFileSync(
-  new URL("../functions/api/[[path]].ts", import.meta.url),
-  "utf8",
-);
+import { apiSource as source } from "./project-source";
 
 describe("permissões de avarias", () => {
   it("disponibiliza uma rota limitada para comunicar avarias", () =>

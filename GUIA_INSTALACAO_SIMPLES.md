@@ -41,16 +41,10 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e repita com `supabase/migrations/002_operations.sql`.
-6. Abra uma nova query e execute também `supabase/migrations/003_bike_types.sql`.
-7. Por fim, execute `supabase/migrations/004_support_locations.sql`.
-8. Execute também `supabase/migrations/005_maintenance_role.sql`.
-9. Execute `supabase/migrations/006_daily_closures.sql`, que cria os fechos diários e o armazenamento privado dos talões.
-10. Execute `supabase/migrations/007_rental_corrections.sql`, que permite corrigir alugueres em aberto e comunicar discrepâncias.
-11. Execute `supabase/migrations/008_children_and_accessories.sql`, que acrescenta bicicletas infantis e acessórios ao inventário.
-12. Abra uma nova query e execute `supabase/seed.sql`.
-13. Execute `supabase/migrations/009_transient_contacts_and_accessories.sql`, que cria o contacto temporário e completa os capacetes e cadeados de cada quiosque.
-14. Execute `supabase/migrations/010_rental_concurrency.sql`, que reforça os bloqueios dos alugueres e devoluções simultâneas.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `011_inventory_fault_integrity.sql`.
+6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
+
+O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
 
 Se surgir uma mensagem vermelha, pare e guarde uma captura do erro. Não execute os ficheiros repetidamente.
 
@@ -105,13 +99,11 @@ Na página principal devem aparecer diretamente `package.json`, `src`, `function
 |---|---|---|
 | `SUPABASE_URL` | O Project URL copiado do Supabase | Variable |
 | `SUPABASE_SECRET_KEY` | A chave que começa por `sb_secret_` | Secret |
-| `SESSION_SECRET` | Um código aleatório com pelo menos 40 caracteres | Secret |
 | `BOOTSTRAP_TOKEN` | Outro código aleatório com pelo menos 40 caracteres | Secret |
-| `APP_ORIGIN` | O endereço da aplicação atribuído pelo Cloudflare | Variable |
 
 Se copiou a chave antiga `service_role`, crie `SUPABASE_SERVICE_ROLE_KEY` em vez de `SUPABASE_SECRET_KEY`.
 
-Para gerar cada um dos dois códigos aleatórios no Windows:
+Para gerar o código temporário no Windows:
 
 1. Abra o menu Iniciar e procure **PowerShell**.
 2. Cole a linha seguinte e carregue em Enter:
@@ -120,9 +112,7 @@ Para gerar cada um dos dois códigos aleatórios no Windows:
 -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 48 | ForEach-Object {[char]$_})
 ```
 
-3. Copie o resultado para `SESSION_SECRET`.
-4. Execute novamente e copie o novo resultado para `BOOTSTRAP_TOKEN`.
-5. Guarde temporariamente o `BOOTSTRAP_TOKEN`.
+3. Copie o resultado para `BOOTSTRAP_TOKEN` e guarde-o temporariamente.
 
 ### Publicar novamente
 
@@ -153,7 +143,7 @@ Depois de entrar com sucesso:
 
 Antes de inserir dados reais:
 
-1. Confirme que aparecem 20 bicicletas, de `001` a `020`.
+1. Confirme que aparecem 20 bicicletas elétricas (`E001–E020`) e 10 convencionais (`C001–C010`).
 2. Confirme os quiosques Praia da Torre e Terrapleno de Algés.
 3. Crie um funcionário de teste.
 4. Inicie um aluguer com duas bicicletas.
