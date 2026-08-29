@@ -540,14 +540,14 @@ function FleetSummary({
   bikes,
   kiosks,
   canExport,
-  operationalOnly,
+  hideOutOfService,
 }: {
   bikes: Bike[];
   kiosks: Kiosk[];
   canExport: boolean;
-  operationalOnly: boolean;
+  hideOutOfService: boolean;
 }) {
-  const visibleStatuses = operationalOnly ? operationalStatuses : statuses;
+  const visibleStatuses = statuses;
   const active = bikes.filter((b) => b.active !== false),
     electric = active.filter((b) => assetTypeOf(b) === "electric"),
     conventional = active.filter((b) => assetTypeOf(b) === "conventional"),
@@ -677,7 +677,7 @@ function FleetSummary({
           <b>{rate}%</b>
           <small>{available} itens disponíveis</small>
         </div>
-        {!operationalOnly && (
+        {!hideOutOfService && (
           <div className="card alert-kpi">
             <span>Fora de serviço</span>
             <b>{out}</b>
@@ -811,7 +811,7 @@ export function Fleet({ user }: { user: User }) {
         bikes={data?.bikes || []}
         kiosks={data?.kiosks || []}
         canExport={user.role === "admin"}
-        operationalOnly={user.role === "funcionario"}
+        hideOutOfService={user.role === "funcionario"}
       />
       <div className="filters">
         <input
@@ -829,7 +829,7 @@ export function Fleet({ user }: { user: User }) {
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Todos os estados</option>
-          {(user.role === "funcionario" ? operationalStatuses : statuses).map((x) => (
+          {statuses.map((x) => (
             <option key={x}>{x}</option>
           ))}
         </select>

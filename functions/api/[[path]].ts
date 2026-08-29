@@ -242,7 +242,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204 });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.5.3",
+        version: "1.5.4",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -488,7 +488,7 @@ export const onRequest: PagesFunction<Env> = async ({
       const kiosks=await db(ctx,`kiosks?active=eq.true${ctx.user.role==='funcionario'?'&allows_rentals=eq.true':''}&select=*&order=name`);
       const kioskIds=kiosks.map((k:any)=>k.id);
       const bikeQuery=ctx.user.role==='funcionario'
-        ? `bikes?active=eq.true&kiosk_id=in.(${kioskIds.join(',')})&status=in.(${q('Disponível')},${q('Alugada')})&select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at,kiosk:kiosks(id,name,allows_rentals)&order=code`
+        ? `bikes?active=eq.true&kiosk_id=in.(${kioskIds.join(',')})&select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at,kiosk:kiosks(id,name,allows_rentals)&order=code`
         : "bikes?select=*,kiosk:kiosks(*)&order=code";
       const bikes=ctx.user.role==='funcionario'&&!kioskIds.length?[]:await db(ctx,bikeQuery);
       return json({ bikes, kiosks });

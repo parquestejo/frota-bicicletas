@@ -49,12 +49,18 @@ describe("visibilidade operacional do funcionário", () => {
     expect(api).toContain(
       "select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at",
     ));
-  it("devolve apenas itens disponíveis ou alugados", () => {
+  it("mantém o dashboard do funcionário limitado aos estados operacionais", () => {
     expect(api).toContain(
       "['Disponível','Alugada'].includes(b.status)",
     );
+  });
+  it("devolve todos os estados dos itens localizados nos quiosques", () => {
     expect(api).toContain(
-      "status=in.(${q('Disponível')},${q('Alugada')})",
+      "bikes?active=eq.true&kiosk_id=in.(${kioskIds.join(',')})&select=id,code,asset_type,model,kiosk_id,status",
     );
+    expect(api).not.toContain(
+      "kiosk_id=in.(${kioskIds.join(',')})&status=in.",
+    );
+    expect(pages).toContain("const visibleStatuses = statuses");
   });
 });
