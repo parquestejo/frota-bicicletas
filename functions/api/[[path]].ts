@@ -242,7 +242,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204 });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.5.4",
+        version: "1.6.0",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -434,7 +434,7 @@ export const onRequest: PagesFunction<Env> = async ({
         const [periodRentals,periodClosures,openRentalDetails,discrepancies,recentClosureGroups]=await Promise.all([
           db(ctx,`rentals?started_at=gte.${q(previousMonthStart+'T00:00:00Z')}&select=id,started_at,status,items:rental_items(id,bike:bikes(asset_type))`),
           db(ctx,`daily_closures?report_date=gte.${q(previousMonthStart)}&select=*,kiosk:kiosks(name),user:users(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast`),
-          db(ctx,'rentals?status=eq.Em%20aberto&select=id,reference,customer_ref,started_at,start_kiosk:kiosks(name),started_by_user:users!rentals_started_by_fkey(full_name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.asc'),
+          db(ctx,'rentals?status=eq.Em%20aberto&select=id,reference,customer_ref,customer_contact,started_at,start_kiosk:kiosks(name),started_by_user:users!rentals_started_by_fkey(full_name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.asc'),
           db(ctx,'rental_discrepancies?status=eq.Pendente&select=id'),
           Promise.all(rentalKiosks.map((k:any)=>db(ctx,`daily_closures?kiosk_id=eq.${q(k.id)}&status=eq.Submetido&select=*,kiosk:kiosks(name),user:users(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast&limit=3`)))
         ]);
@@ -667,13 +667,18 @@ export const onRequest: PagesFunction<Env> = async ({
       return json({ rentals, available_bikes: bikes, kiosks, discrepancies });
     }
     if (route === "/rentals" && request.method === "POST") {
-      const b = await body(request);
+      const b = await body(request),
+        customerContact = String(b.customer_contact || "").trim();
       if (
         !b.customer_ref?.trim() ||
         !Array.isArray(b.bike_ids) ||
         !b.bike_ids.length
       )
         return err("Indique o cliente e pelo menos uma bicicleta.");
+      if (customerContact.length > 50)
+        return err("O número de contacto não pode exceder 50 caracteres.");
+      if (customerContact && !/^[0-9+().\s-]{3,50}$/.test(customerContact))
+        return err("Indique um número de contacto válido.");
       const rows = await db(ctx, "rpc/start_rental", {
         method: "POST",
         body: JSON.stringify({
@@ -681,6 +686,7 @@ export const onRequest: PagesFunction<Env> = async ({
           p_start_kiosk_id: b.start_kiosk_id,
           p_bike_ids: b.bike_ids,
           p_user_id: ctx.user.id,
+          p_customer_contact: customerContact || null,
         }),
       });
       return json(rows, 201);

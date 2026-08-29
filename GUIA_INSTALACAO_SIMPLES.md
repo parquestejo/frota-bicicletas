@@ -49,6 +49,7 @@ Execute os ficheiros pela ordem indicada:
 10. Execute `supabase/migrations/007_rental_corrections.sql`, que permite corrigir alugueres em aberto e comunicar discrepâncias.
 11. Execute `supabase/migrations/008_children_and_accessories.sql`, que acrescenta bicicletas infantis e acessórios ao inventário.
 12. Abra uma nova query e execute `supabase/seed.sql`.
+13. Execute `supabase/migrations/009_transient_contacts_and_accessories.sql`, que cria o contacto temporário e completa os capacetes e cadeados de cada quiosque.
 
 Se surgir uma mensagem vermelha, pare e guarde uma captura do erro. Não execute os ficheiros repetidamente.
 

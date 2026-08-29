@@ -1338,6 +1338,7 @@ export function Rentals({ user }: { user: User }) {
     inDateRange(r.started_at, dateFrom, dateTo),
   );
   const [customer, setCustomer] = useState(""),
+    [customerContact, setCustomerContact] = useState(""),
     [kiosk, setKiosk] = useState(""),
     [selected, setSelected] = useState<string[]>([]);
   useEffect(() => {
@@ -1349,10 +1350,12 @@ export function Rentals({ user }: { user: User }) {
       return alert("Indique o cliente e selecione pelo menos um item.");
     await post("/rentals", {
       customer_ref: customer,
+      customer_contact: customerContact,
       start_kiosk_id: kiosk,
       bike_ids: selected,
     });
     setCustomer("");
+    setCustomerContact("");
     setSelected([]);
     setShow(false);
     setRefresh((x) => x + 1);
@@ -1414,6 +1417,20 @@ export function Rentals({ user }: { user: User }) {
               onChange={(e) => setCustomer(e.target.value)}
               required
             />
+          </label>
+          <label>
+            Número de contacto (opcional)
+            <input
+              type="tel"
+              autoComplete="tel"
+              maxLength={50}
+              value={customerContact}
+              placeholder="Utilizado apenas enquanto o aluguer estiver aberto"
+              onChange={(e) => setCustomerContact(e.target.value)}
+            />
+            <small>
+              O contacto é eliminado automaticamente após a devolução completa.
+            </small>
           </label>
           <label>
             Quiosque de saída
@@ -1506,6 +1523,14 @@ export function Rentals({ user }: { user: User }) {
                 <Badge>{r.status}</Badge>
               </div>
               <h3>{r.customer_ref}</h3>
+              {r.customer_contact && (
+                <p>
+                  Contacto: {" "}
+                  <a href={`tel:${r.customer_contact}`}>
+                    {r.customer_contact}
+                  </a>
+                </p>
+              )}
               <p>
                 {r.items
                   .map((i) => i.bike?.code + (i.returned_at ? " ✓" : ""))

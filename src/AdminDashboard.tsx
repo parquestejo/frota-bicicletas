@@ -294,6 +294,14 @@ export function AdminDashboard({ data }: { data?: ManagementData | null }) {
                   <small className="block-meta">
                     {r.customer_ref} · {r.started_by_user?.full_name}
                   </small>
+                  {r.customer_contact && (
+                    <small className="block-meta">
+                      Contacto: {" "}
+                      <a href={`tel:${r.customer_contact}`}>
+                        {r.customer_contact}
+                      </a>
+                    </small>
+                  )}
                 </span>
                 <small>{fmt(r.started_at)}</small>
               </div>

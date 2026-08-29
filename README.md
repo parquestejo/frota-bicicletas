@@ -48,6 +48,8 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 - Correção de alugueres em aberto, com adição ou remoção de bicicletas e comunicação de discrepâncias.
 - Inventário unificado de bicicletas elétricas, convencionais e infantis, capacetes, cadeados e carrinhos de bebé.
 - Vista operacional dos funcionários limitada aos itens localizados nos quiosques de aluguer, incluindo todos os respetivos estados; Armazém, Evento e outras localizações internas ficam excluídos.
+- Contacto opcional do cliente disponível apenas durante o aluguer em aberto e eliminado automaticamente na devolução completa, sem integração no histórico ou na auditoria.
+- Migração `009_transient_contacts_and_accessories.sql` para completar automaticamente cada quiosque de aluguer até 8 capacetes e 2 cadeados.
 - Dashboard administrativo com atividade diária, semanal e mensal, receita declarada, os três últimos relatórios de final de dia de cada quiosque, inventário operacional disponível/alugado, ocorrências, observações, comparação temporal e exportação CSV.
 - Matriz da frota por localização, tipologia e estado, permitindo consultar diretamente quantas bicicletas elétricas, convencionais e infantis e quantos acessórios existem em cada situação.
 - Interface responsiva e em português de Portugal.
