@@ -21,4 +21,13 @@ describe("estrutura e mensagens da interface", () => {
     expect(apiSource).toContain("handleInventoryRoutes");
     expect(apiSource).toContain("handleRentalRoutes");
   });
+  it("coloca as ações operacionais antes dos indicadores no dashboard dos funcionários", () => {
+    const dashboard = readFileSync(new URL("../src/pages/Dashboard.tsx", import.meta.url), "utf8");
+    expect(dashboard).toContain("Ações rápidas");
+    expect(dashboard).toContain("Registar devolução");
+    expect(dashboard).toContain("Fecho diário");
+    expect(dashboard.indexOf('className="employee-action-panel"')).toBeLessThan(
+      dashboard.indexOf('className="metrics"'),
+    );
+  });
 });

@@ -364,6 +364,27 @@ textarea {
   flex-wrap: wrap;
   margin: 1.5rem 0;
 }
+.employee-action-panel {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-top: 5px solid var(--yellow);
+  border-radius: 10px;
+  background: #fff;
+}
+.employee-action-panel h2 { margin: 0 0 .85rem; font-size: 1.15rem; }
+.employee-primary-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(135px, 1fr));
+  gap: .75rem;
+}
+.employee-primary-actions a {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -655,9 +676,11 @@ th {
   .management-periods {
     grid-template-columns: 1fr 1fr;
   }
+  .employee-primary-actions { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 520px) {
   .management-periods {
     grid-template-columns: 1fr;
   }
+  .employee-primary-actions a:first-child { grid-column: 1 / -1; }
 }

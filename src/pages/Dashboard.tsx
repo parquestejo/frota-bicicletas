@@ -21,6 +21,18 @@ export function Dashboard({ user }: { user: User }) {
           <p>Estado atual da operação</p>
         </div>
       </div>
+      {user.role === "funcionario" && (
+        <section className="employee-action-panel" aria-labelledby="employee-actions-title">
+          <h2 id="employee-actions-title">Ações rápidas</h2>
+          <div className="employee-primary-actions">
+            <Link className="primary" to="/alugueres/novo">Novo aluguer</Link>
+            <Link className="secondary" to="/alugueres">Registar devolução</Link>
+            <Link className="secondary" to="/comunicar-avaria">Comunicar avaria</Link>
+            <Link className="secondary" to="/frota">Ver frota</Link>
+            <Link className="secondary" to="/fecho-diario">Fecho diário</Link>
+          </div>
+        </section>
+      )}
       <div className="metrics">
         {dashboardStatuses.map((s) => {
           const c = data.counts_by_type?.[s] || {
@@ -57,7 +69,7 @@ export function Dashboard({ user }: { user: User }) {
           );
         })}
       </div>
-      <div className="actions">
+      {user.role !== "funcionario" && <div className="actions">
         {!maintenance && (
           <>
             <Link className="primary" to="/alugueres/novo">
@@ -74,7 +86,7 @@ export function Dashboard({ user }: { user: User }) {
         <Link className="secondary" to="/frota">
           Ver frota
         </Link>
-      </div>
+      </div>}
       {user.role === "funcionario" && (
         <section
           className={
@@ -92,11 +104,6 @@ export function Dashboard({ user }: { user: User }) {
                   : "O fecho de hoje ainda não foi preenchido."}
             </p>
           </div>
-          <Link className="secondary" to="/fecho-diario">
-            {data.daily_closure?.status === "Submetido"
-              ? "Consultar fecho"
-              : "Preencher fecho"}
-          </Link>
         </section>
       )}
       {user.role === "admin" && <AdminDashboard data={data.admin_management} />}
@@ -220,4 +227,3 @@ export function Dashboard({ user }: { user: User }) {
     </>
   );
 }
-

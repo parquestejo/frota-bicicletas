@@ -1,7 +1,8 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 1.11.0
+## Versão 1.11.1
 
+- Ações operacionais colocadas no topo do dashboard dos funcionários: novo aluguer, devolução, avaria, frota e fecho diário.
 - Relatório executivo em PDF, com identidade Parques Tejo, indicadores, gráficos e período selecionado.
 - Exportação CSV mantida para tratamento detalhado dos dados.
 - Distinção automática entre alugueres pagos, gratuitos (`0,00 €`) e histórico anterior sem valor conhecido.
