@@ -153,6 +153,7 @@ function FaultUpdateControls({
   );
 }
 export function Faults() {
+  const focusedFault = new URLSearchParams(location.search).get("focus") || "";
   const [refresh, setRefresh] = useState(0),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState(""),
@@ -173,6 +174,10 @@ export function Faults() {
     severity: "Média",
     usable: false,
   });
+  useEffect(() => {
+    if (!focusedFault || !data) return;
+    window.setTimeout(() => document.getElementById(`fault-${focusedFault}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+  }, [focusedFault, data]);
   async function create() {
     await post("/faults", form);
     setShow(false);
@@ -290,7 +295,7 @@ export function Faults() {
           </thead>
           <tbody>
             {visibleFaults.map((f) => (
-              <tr key={f.id}>
+              <tr id={`fault-${f.id}`} className={focusedFault === f.id ? "focused-fault" : ""} key={f.id}>
                 <td>
                   <b>{f.bike?.code}</b>
                 </td>

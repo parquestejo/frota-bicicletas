@@ -83,6 +83,7 @@ type Stats = {
   conventional_count: number;
   child_count: number;
   accessory_count: number;
+  charged_total: number;
 };
 const emptyStats: Stats = {
   rental_count: 0,
@@ -91,6 +92,7 @@ const emptyStats: Stats = {
   conventional_count: 0,
   child_count: 0,
   accessory_count: 0,
+  charged_total: 0,
 };
 
 export function DailyClosures({ user }: { user: User }) {
@@ -276,6 +278,10 @@ export function DailyClosures({ user }: { user: User }) {
             <span>Acessórios</span>
             <b>{stats.accessory_count}</b>
           </div>
+          <div>
+            <span>Valor dos alugueres</span>
+            <b>{money(stats.charged_total)}</b>
+          </div>
         </div>
         <div className="form-grid closure-manual-fields">
           <label>
@@ -304,6 +310,9 @@ export function DailyClosures({ user }: { user: User }) {
             </small>
           </label>
         </div>
+        {cardTotal !== "" && Math.abs(Number(cardTotal) - Number(stats.charged_total || 0)) > 0.009 && (
+          <p className="error" role="alert">Existe uma diferença de {money(Math.abs(Number(cardTotal) - Number(stats.charged_total || 0)))} entre o Multibanco declarado e os valores registados nos alugueres.</p>
+        )}
         <label>
           Observações (opcional)
           <textarea

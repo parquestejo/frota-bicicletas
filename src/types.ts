@@ -56,6 +56,7 @@ export interface Rental {
   reference: string;
   customer_ref: string;
   customer_contact?: string;
+  charged_amount: number;
   start_kiosk_id: string;
   status: "Em aberto" | "Concluído";
   started_at: string;

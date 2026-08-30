@@ -23,6 +23,7 @@ import { NewRental } from "./NewRental";
 import { Activity } from "./Activity";
 import { DailyClosures } from "./DailyClosures";
 import { FeedbackProvider } from "./Feedback";
+import { NotificationCenter } from "./Notifications";
 
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [username, setUsername] = useState("");
@@ -212,7 +213,8 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
           />
           <strong>Frota e equipamentos</strong>
         </div>
-        <div>
+        <div className="header-user-actions">
+          <NotificationCenter user={user} />
           <span className="user-name">{user.full_name}</span>
           <button
             className="text"

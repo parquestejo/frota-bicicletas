@@ -43,7 +43,8 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
     }
     if (route === "/rentals" && request.method === "POST") {
       const b = await body(request),
-        customerContact = String(b.customer_contact || "").trim();
+        customerContact = String(b.customer_contact || "").trim(),
+        chargedAmount = Number(b.charged_amount);
       if (
         !b.customer_ref?.trim() ||
         !Array.isArray(b.bike_ids) ||
@@ -54,6 +55,8 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         return err("O número de contacto não pode exceder 50 caracteres.");
       if (customerContact && !/^[0-9+().\s-]{3,50}$/.test(customerContact))
         return err("Indique um número de contacto válido.");
+      if (b.charged_amount === "" || b.charged_amount === null || b.charged_amount === undefined || !Number.isFinite(chargedAmount) || chargedAmount < 0 || chargedAmount > 100000)
+        return err("Indique o valor cobrado por Multibanco.");
       const rows = await db(ctx, "rpc/start_rental", {
         method: "POST",
         body: JSON.stringify({
@@ -62,6 +65,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           p_bike_ids: b.bike_ids,
           p_user_id: ctx.user.id,
           p_customer_contact: customerContact || null,
+          p_charged_amount: chargedAmount,
         }),
       });
       return json(rows, 201);
@@ -253,4 +257,3 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
     }
   return null;
 }
-

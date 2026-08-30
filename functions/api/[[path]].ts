@@ -3,16 +3,19 @@ import {
   type Env, type Ctx, securityHeaders, json, err, random, digest,
   passwordHash, passwordOK, DbError, db, dbAll, dbCount, uploadReceipt,
   readReceipt, q, cookie, setCookie, body, audit, auth, allow, csrfOK, cleanUser,
+  flushPendingAlertEmails,
 } from "./_shared";
 import { handleInventoryRoutes } from "./routes/inventory";
 import { handleRentalRoutes } from "./routes/rentals";
 import { handleFaultAndUserRoutes } from "./routes/faults-users";
 import { handleDailyAndActivityRoutes } from "./routes/daily-activity";
+import { handleNotificationRoutes } from "./routes/notifications";
 
 export const onRequest: PagesFunction<Env> = async ({
   request,
   env,
   params,
+  waitUntil,
 }) => {
   const ctx: Ctx = { env };
   const route = normalizeApiPath(params.path as string | string[] | undefined);
@@ -22,7 +25,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204, headers: securityHeaders });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.8.1",
+        version: "1.11.0",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -141,10 +144,15 @@ export const onRequest: PagesFunction<Env> = async ({
       handleRentalRoutes,
       handleFaultAndUserRoutes,
       handleDailyAndActivityRoutes,
+      handleNotificationRoutes,
     ];
     for (const handler of handlers) {
       const response = await handler(ctx, request, route, parts);
-      if (response) return response;
+      if (response) {
+        if (!["GET", "HEAD"].includes(request.method))
+          waitUntil(flushPendingAlertEmails(ctx).catch((error) => console.error("alert_email", error)));
+        return response;
+      }
     }
     return err("Página ou operação não encontrada.", 404);
   } catch (e) {

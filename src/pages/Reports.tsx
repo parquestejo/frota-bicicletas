@@ -4,6 +4,7 @@ import { api, post, patch } from "../api";
 import type { AssetType, Bike, BikeStatus, Fault, Kiosk, Rental, RentalDiscrepancy, RentalItem, User } from "../types";
 import { useFeedback } from "../Feedback";
 import { assetLabel, assetOptions, assetTypeOf, Badge, DateRange, daysSince, dayKey, exportCSV, fmt, inDateRange, isBicycle, operationalStatuses, statuses, useLoad } from "./shared";
+import { RentalAnalytics } from "./RentalAnalytics";
 export function Reports() {
   const reportsLoad = useLoad<{ rentals: Rental[]; faults: Fault[] }>("/reports/data");
   const [tab, setTab] = useState<"rentals" | "faults">("rentals"),
@@ -20,6 +21,7 @@ export function Reports() {
     r.items.map((i) => [
       r.reference,
       r.customer_ref,
+      Number(r.charged_amount || 0).toFixed(2),
       i.bike?.code,
       assetLabel(i.bike),
       r.start_kiosk?.name,
@@ -78,6 +80,7 @@ export function Reports() {
       )}
       {tab === "rentals" ? (
         <>
+          <RentalAnalytics from={dateFrom} to={dateTo} />
           <div className="title report-title">
             <div>
               <h2>Alugueres concluídos</h2>
@@ -91,6 +94,7 @@ export function Reports() {
                   [
                     "Referência",
                     "Cliente",
+                    "Valor Multibanco (€)",
                     "Item",
                     "Tipo",
                     "Quiosque de saída",
@@ -115,6 +119,7 @@ export function Reports() {
                 <tr>
                   <th>Referência</th>
                   <th>Cliente</th>
+                  <th>Valor</th>
                   <th>Item</th>
                   <th>Tipo</th>
                   <th>Saída</th>
@@ -133,6 +138,7 @@ export function Reports() {
                         <b>{r.reference}</b>
                       </td>
                       <td>{r.customer_ref}</td>
+                      <td>{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(r.charged_amount || 0))}</td>
                       <td>{i.bike?.code}</td>
                       <td>{assetLabel(i.bike)}</td>
                       <td>{r.start_kiosk?.name}</td>
@@ -236,4 +242,3 @@ export function Reports() {
     </>
   );
 }
-

@@ -187,6 +187,82 @@ textarea {
   font-size: 1.25rem;
   line-height: 1;
 }
+.header-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.notification-center { position: relative; }
+.notification-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  font-size: 1.15rem;
+}
+.notification-button b {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.25rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 1rem;
+  background: #b42318;
+  color: #fff;
+  font-size: 0.7rem;
+}
+.notification-panel {
+  position: absolute;
+  z-index: 900;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: min(35rem, calc(100vh - 6rem));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 35px rgba(53, 54, 53, 0.24);
+}
+.notification-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.notification-heading h2 { margin: 0; font-size: 1.1rem; }
+.notification-list { max-height: 27rem; overflow-y: auto; }
+.notification-item {
+  display: block;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.notification-item.unread { border-left: 5px solid var(--yellow); background: #fff9ed; }
+.notification-item span, .notification-item small, .notification-item time { display: block; }
+.notification-item small { margin: 0.3rem 0; }
+.notification-item time { color: var(--dark-gray); font-size: 0.78rem; }
+.notification-empty { padding: 1rem; }
+.focused-fault { outline: 3px solid var(--yellow); outline-offset: -3px; background: #fff9ed; }
+.rental-analytics { margin: 1rem 0 2rem; }
+.analytics-kpis { margin-bottom: 1rem; }
+.analytics-kpis .textual-kpi { font-size: 1.15rem; }
+.report-actions { display:flex; gap:.65rem; flex-wrap:wrap; justify-content:flex-end; }
+.analytics-grid { align-items: start; }
+.analytics-grid .row span small { display: block; margin-top: 0.2rem; color: var(--dark-gray); }
+.stockout-report { margin-top: 1rem; }
 .shell header {
   height: 64px;
   background: #fff;

@@ -41,7 +41,7 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `011_inventory_fault_integrity.sql`.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `014_pdf_reports_and_free_rentals.sql`.
 6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
@@ -100,6 +100,16 @@ Na página principal devem aparecer diretamente `package.json`, `src`, `function
 | `SUPABASE_URL` | O Project URL copiado do Supabase | Variable |
 | `SUPABASE_SECRET_KEY` | A chave que começa por `sb_secret_` | Secret |
 | `BOOTSTRAP_TOKEN` | Outro código aleatório com pelo menos 40 caracteres | Secret |
+
+Para ativar também os avisos por email, crie uma conta no Resend, valide um domínio da empresa e acrescente:
+
+| Nome | Valor | Tipo |
+|---|---|---|
+| `RESEND_API_KEY` | A chave que começa por `re_` | Secret |
+| `ALERT_EMAIL_FROM` | `Parques Tejo <alertas@dominio-validado.pt>` | Variable |
+| `ALERT_EMAIL_TO` | Emails da manutenção/administração, separados por vírgulas | Variable |
+
+Sem estas três configurações, o sino e os alertas dentro da aplicação funcionam normalmente; apenas o envio por email fica inativo.
 
 Se copiou a chave antiga `service_role`, crie `SUPABASE_SERVICE_ROLE_KEY` em vez de `SUPABASE_SECRET_KEY`.
 

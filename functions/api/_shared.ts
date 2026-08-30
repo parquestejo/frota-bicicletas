@@ -5,6 +5,9 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   COOKIE_SECURE?: string;
   BOOTSTRAP_TOKEN?: string;
+  RESEND_API_KEY?: string;
+  ALERT_EMAIL_FROM?: string;
+  ALERT_EMAIL_TO?: string;
 }
 export type Ctx = { env: Env; user?: any; session?: any; csrf?: string };
 export const securityHeaders = {
@@ -257,3 +260,57 @@ export const cleanUser = (u: any) => ({
   last_login_at: u.last_login_at,
   created_at: u.created_at,
 });
+
+const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+}[character] || character));
+
+export async function flushPendingAlertEmails(ctx: Ctx) {
+  const { RESEND_API_KEY: apiKey, ALERT_EMAIL_FROM: from, ALERT_EMAIL_TO: configuredTo } = ctx.env;
+  const to = String(configuredTo || "").split(/[,;]/).map((item) => item.trim()).filter(Boolean);
+  if (!apiKey || !from || !to.length) return;
+  const alerts = await db(ctx, "rpc/claim_fault_alert_emails", {
+    method: "POST",
+    body: JSON.stringify({ p_limit: 10 }),
+  });
+  for (const alert of alerts || []) {
+    const subject = `Nova avaria — ${alert.bike_code}`;
+    const text = [
+      subject,
+      `Localização: ${alert.kiosk_name}`,
+      `Gravidade: ${alert.severity}`,
+      `Categoria: ${alert.category}`,
+      `Descrição: ${alert.description}`,
+      `Comunicada por: ${alert.reported_by}`,
+      `Origem: ${alert.origin}`,
+    ].join("\n");
+    const html = `<h2>${escapeHtml(subject)}</h2><p><b>Localização:</b> ${escapeHtml(alert.kiosk_name)}</p><p><b>Gravidade:</b> ${escapeHtml(alert.severity)}</p><p><b>Categoria:</b> ${escapeHtml(alert.category)}</p><p><b>Descrição:</b> ${escapeHtml(alert.description)}</p><p><b>Comunicada por:</b> ${escapeHtml(alert.reported_by)}</p><p><b>Origem:</b> ${escapeHtml(alert.origin)}</p>`;
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": `fault-alert-${alert.fault_id}`,
+        },
+        body: JSON.stringify({ from, to, subject, html, text }),
+      });
+      const result: any = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(result.message || `Resend ${response.status}`));
+      await db(ctx, `fault_alert_email_queue?id=eq.${q(alert.queue_id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "sent", sent_at: new Date().toISOString(), provider_message_id: result.id || null, last_error: null }),
+      });
+    } catch (reason) {
+      const exhausted = Number(alert.attempts || 0) >= 5;
+      await db(ctx, `fault_alert_email_queue?id=eq.${q(alert.queue_id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: exhausted ? "failed" : "pending",
+          available_at: new Date(Date.now() + Math.min(60, 5 * Number(alert.attempts || 1)) * 60000).toISOString(),
+          last_error: String((reason as Error).message).slice(0, 500),
+        }),
+      });
+    }
+  }
+}

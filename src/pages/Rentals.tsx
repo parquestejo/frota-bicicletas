@@ -4,6 +4,7 @@ import { api, post, patch } from "../api";
 import type { AssetType, Bike, BikeStatus, Fault, Kiosk, Rental, RentalDiscrepancy, RentalItem, User } from "../types";
 import { useFeedback } from "../Feedback";
 import { RentalSummary } from "./Fleet";
+const rentalMoney = (value: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(value || 0));
 import { assetLabel, assetOptions, assetTypeOf, Badge, DateRange, daysSince, dayKey, exportCSV, fmt, inDateRange, isBicycle, operationalStatuses, statuses, useLoad } from "./shared";
 function RentalCorrection({
   rental,
@@ -280,6 +281,7 @@ export function Rentals({ user }: { user: User }) {
                 <Badge>{r.status}</Badge>
               </div>
               <h3>{r.customer_ref}</h3>
+              <p><b>{rentalMoney(r.charged_amount)}</b> · Multibanco</p>
               {r.customer_contact && (
                 <p>
                   Contacto: {" "}
@@ -361,6 +363,7 @@ export function Rentals({ user }: { user: User }) {
               <th>Referência</th>
               <th>Cliente</th>
               <th>Itens</th>
+              <th>Valor</th>
               <th>Registado por</th>
               <th>Início</th>
               <th>Fim</th>
@@ -374,6 +377,7 @@ export function Rentals({ user }: { user: User }) {
                   <td>{r.reference}</td>
                   <td>{r.customer_ref}</td>
                   <td>{r.items.map((i) => i.bike?.code).join(", ")}</td>
+                  <td>{rentalMoney(r.charged_amount)}</td>
                   <td>{r.started_by_user?.full_name || "—"}</td>
                   <td>{fmt(r.started_at)}</td>
                   <td>{fmt(r.returned_at)}</td>

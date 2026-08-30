@@ -270,6 +270,21 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       ]);
       return json({ rentals, faults });
     }
+    if (route === "/reports/analytics" && request.method === "GET") {
+      if (!allow(ctx, "admin"))
+        return err("Acesso reservado a administradores.", 403);
+      const url = new URL(request.url),
+        from = url.searchParams.get("from"),
+        to = url.searchParams.get("to"),
+        validDate = (value: string | null) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
+      if (!validDate(from) || !validDate(to) || (from && to && from > to))
+        return err("O período selecionado não é válido.");
+      const parameters = JSON.stringify({ p_from: from || null, p_to: to || null });
+      const [analytics, payments] = await Promise.all([
+        db(ctx, "rpc/rental_management_analytics", { method: "POST", body: parameters }),
+        db(ctx, "rpc/rental_payment_analytics", { method: "POST", body: parameters }),
+      ]);
+      return json({ analytics: { ...analytics, ...payments } });
+    }
   return null;
 }
-

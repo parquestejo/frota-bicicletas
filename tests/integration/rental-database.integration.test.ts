@@ -55,7 +55,7 @@ async function insert(table: string, body: unknown) {
   return result.body;
 }
 
-async function startRental(selectedBikeIds: string[], contact = "+351 910 000 000") {
+async function startRental(selectedBikeIds: string[], contact = "+351 910 000 000", chargedAmount = 12.5) {
   return request("rpc/start_rental", {
     method: "POST",
     body: JSON.stringify({
@@ -64,6 +64,7 @@ async function startRental(selectedBikeIds: string[], contact = "+351 910 000 00
       p_bike_ids: selectedBikeIds,
       p_user_id: userId,
       p_customer_contact: contact,
+      p_charged_amount: chargedAmount,
     }),
   });
 }
@@ -128,6 +129,8 @@ describe.skipIf(!enabled)("alugueres contra PostgreSQL real", () => {
     if (ids.users.length)
       await request(`users?id=in.(${ids.users.join(",")})`, { method: "DELETE" });
     if (ids.kiosks.length)
+      await request(`availability_incidents?kiosk_id=in.(${ids.kiosks.join(",")})`, { method: "DELETE" });
+    if (ids.kiosks.length)
       await request(`kiosks?id=in.(${ids.kiosks.join(",")})`, { method: "DELETE" });
   });
 
@@ -169,12 +172,16 @@ describe.skipIf(!enabled)("alugueres contra PostgreSQL real", () => {
     expect(returned.every((result) => result.response.ok)).toBe(true);
 
     const rental = await request(
-      `rentals?id=eq.${rentalId}&select=status,customer_contact`,
+      `rentals?id=eq.${rentalId}&select=status,customer_contact,charged_amount`,
     );
     expect(rental.body[0]).toEqual({
       status: "Concluído",
       customer_contact: null,
+      charged_amount: 12.5,
     });
+    const incidents = await request(`availability_incidents?kiosk_id=eq.${kioskId}&select=cause,ended_at`);
+    expect(incidents.body.length).toBeGreaterThan(0);
+    expect(incidents.body[0].ended_at).not.toBeNull();
   });
 
   it("atualiza frota, avaria e intervenção numa operação coerente", async () => {
@@ -199,6 +206,14 @@ describe.skipIf(!enabled)("alugueres contra PostgreSQL real", () => {
     );
     expect(faults.body).toHaveLength(1);
     const faultId = faults.body[0].id;
+
+    const [notifications, queuedEmail] = await Promise.all([
+      request(`notifications?fault_id=eq.${faultId}&user_id=eq.${userId}&select=id`),
+      request(`fault_alert_email_queue?fault_id=eq.${faultId}&select=id,status`),
+    ]);
+    expect(notifications.body).toHaveLength(1);
+    expect(queuedEmail.body).toHaveLength(1);
+    expect(queuedEmail.body[0].status).toBe("pending");
 
     const resolved = await request("rpc/update_fault", {
       method: "POST",

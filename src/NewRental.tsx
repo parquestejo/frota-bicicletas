@@ -13,6 +13,7 @@ export function NewRental({ user }: { user: User }) {
     [message, setMessage] = useState(""),
     [customer, setCustomer] = useState(""),
     [customerContact, setCustomerContact] = useState(""),
+    [chargedAmount, setChargedAmount] = useState(""),
     [kiosk, setKiosk] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
     [busy, setBusy] = useState(false);
@@ -39,6 +40,10 @@ export function NewRental({ user }: { user: User }) {
       setMessage("Selecione pelo menos uma bicicleta ou acessório.");
       return;
     }
+    if (chargedAmount === "" || Number(chargedAmount) < 0) {
+      setMessage("Indique o valor cobrado por Multibanco.");
+      return;
+    }
     setBusy(true);
     try {
       await post("/rentals", {
@@ -46,6 +51,7 @@ export function NewRental({ user }: { user: User }) {
         customer_contact: customerContact,
         start_kiosk_id: kiosk,
         bike_ids: selected,
+        charged_amount: Number(chargedAmount),
       });
       navigate("/alugueres");
     } catch (e) {
@@ -107,6 +113,11 @@ export function NewRental({ user }: { user: User }) {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Valor cobrado (€)
+            <input type="number" inputMode="decimal" min="0" max="100000" step="0.01"
+              value={chargedAmount} onChange={(e) => setChargedAmount(e.target.value)} required />
           </label>
           <fieldset aria-invalid={!!message && !selected.length}>
             <legend>Bicicletas e acessórios disponíveis</legend>

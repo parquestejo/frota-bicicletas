@@ -1,7 +1,17 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 1.8.1
+## Versão 1.11.0
 
+- Relatório executivo em PDF, com identidade Parques Tejo, indicadores, gráficos e período selecionado.
+- Exportação CSV mantida para tratamento detalhado dos dados.
+- Distinção automática entre alugueres pagos, gratuitos (`0,00 €`) e histórico anterior sem valor conhecido.
+- Valor Multibanco associado a cada aluguer, incluindo alugueres gratuitos com valor zero.
+- Indicadores administrativos de procura, duração média, receita, dias da semana, quiosques e tipologias.
+- Registo automático dos períodos em que um quiosque fica sem bicicletas disponíveis, distinguindo falta por procura e capacidade mista.
+- Comparação no fecho diário entre o valor declarado e a soma dos alugueres registados.
+- Alertas automáticos de novas avarias para administradores e perfis de Manutenção.
+- Sino no cabeçalho, contador de notificações não lidas e ligação direta para a ocorrência.
+- Fila de email com bloqueio, idempotência e até cinco tentativas através da API Resend.
 - Interface sem caixas nativas bloqueantes: validações, confirmações e resultados aparecem dentro da aplicação.
 - Criação de utilizadores e redefinição de palavras-passe através de formulários com confirmação dupla.
 - Frontend dividido por áreas funcionais em `src/pages/`.
@@ -46,7 +56,7 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 - Perfis Administrador e Funcionário, validados no backend.
 - Dashboard com estados reais, distribuição por quiosque, alugueres em aberto, devoluções recentes e avarias pendentes.
 - Frota, filtros, criação e alteração administrativa, desativação sem apagar histórico.
-- Aluguer de uma ou várias bicicletas, transacional e sem campos financeiros.
+- Aluguer de uma ou várias bicicletas, transacional, com valor cobrado por Multibanco; o valor zero identifica um aluguer gratuito.
 - Devoluções parciais, mudança de quiosque e criação automática de avaria.
 - Avarias, passagem para manutenção e conclusão com escolha explícita do estado final.
 - Funcionários podem comunicar uma avaria sem consultar ocorrências, reparações ou histórico de manutenção; a gestão fica reservada a administradores e manutenção.
@@ -81,6 +91,9 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/009_transient_contacts_and_accessories.sql`
    - `supabase/migrations/010_rental_concurrency.sql`
    - `supabase/migrations/011_inventory_fault_integrity.sql`
+   - `supabase/migrations/012_fault_notifications.sql`
+   - `supabase/migrations/013_rental_management_analytics.sql`
+   - `supabase/migrations/014_pdf_reports_and_free_rentals.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -94,7 +107,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Se a aplicação já está instalada e as migrações `001–010` foram executadas, execute apenas `supabase/migrations/011_inventory_fault_integrity.sql` antes de publicar este código. Não volte a executar o `seed` nem as migrações anteriores.
+Numa instalação já atualizada até à versão 1.10.0, execute apenas `supabase/migrations/014_pdf_reports_and_free_rentals.sql` antes de publicar este código. Se ainda não executou a migração `013`, execute primeiro a `013` e depois a `014`. Não volte a executar o `seed` nem as migrações anteriores.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 
@@ -117,8 +130,9 @@ Depois de confirmar o acesso, remova `BOOTSTRAP_TOKEN` das variáveis locais e d
 2. No Cloudflare Pages, escolha esse repositório.
 3. Defina o comando de build como `npm run build` e a pasta de saída como `dist`.
 4. Em **Settings → Environment variables**, configure `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (ou a chave antiga `SUPABASE_SERVICE_ROLE_KEY`) e, apenas no primeiro arranque, `BOOTSTRAP_TOKEN`.
-5. Não defina `COOKIE_SECURE=false` em produção.
-6. Publique, crie o administrador pelo endpoint `/api/bootstrap` e remova imediatamente `BOOTSTRAP_TOKEN`.
+5. Para alertas por email, configure também `RESEND_API_KEY`, `ALERT_EMAIL_FROM` e `ALERT_EMAIL_TO`. O domínio do remetente tem de estar validado no Resend; vários destinatários podem ser separados por vírgulas.
+6. Não defina `COOKIE_SECURE=false` em produção.
+7. Publique, crie o administrador pelo endpoint `/api/bootstrap` e remova imediatamente `BOOTSTRAP_TOKEN`.
 
 Os planos gratuitos eram adequados à arquitetura à data de preparação, mas os limites e termos dos fornecedores podem mudar e devem ser confirmados antes da publicação institucional.
 
@@ -184,6 +198,5 @@ Esta suite chama as funções SQL reais e verifica alugueres simultâneos, devol
 - Upload privado de fotografias e documentos.
 - Formulário completo para intervenções e custos de manutenção.
 - Anonimização automática por prazo de retenção definido.
-- Exportações em PDF.
 - Notificações externas e reservas.
 - Migração para servidor próprio mantendo PostgreSQL e a mesma API.
