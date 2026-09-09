@@ -1,6 +1,13 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 1.11.1
+## Versão 1.12.1
+
+- Mensagens claras para regras de integridade ao atualizar avarias e bicicletas, em vez do código técnico `P0001`.
+
+- Correção administrativa de alugueres e fechos com motivo obrigatório, valores anteriores e novos no registo de atividade.
+- Anulação de alugueres sem eliminação do histórico e sem os contabilizar nos indicadores.
+- Emails automáticos via Resend para avarias, reparações, fechos, falhas de fecho e resumo semanal.
+- Configuração de destinatários, resumo semanal e horários dos quiosques no próprio programa.
 
 - Ações operacionais colocadas no topo do dashboard dos funcionários: novo aluguer, devolução, avaria, frota e fecho diário.
 - Relatório executivo em PDF, com identidade Parques Tejo, indicadores, gráficos e período selecionado.
@@ -95,6 +102,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/012_fault_notifications.sql`
    - `supabase/migrations/013_rental_management_analytics.sql`
    - `supabase/migrations/014_pdf_reports_and_free_rentals.sql`
+   - `supabase/migrations/015_admin_corrections_and_email_reports.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -108,7 +116,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Numa instalação já atualizada até à versão 1.10.0, execute apenas `supabase/migrations/014_pdf_reports_and_free_rentals.sql` antes de publicar este código. Se ainda não executou a migração `013`, execute primeiro a `013` e depois a `014`. Não volte a executar o `seed` nem as migrações anteriores.
+Numa instalação existente, confirme que executou as migrações até `014` e execute depois apenas `supabase/migrations/015_admin_corrections_and_email_reports.sql`. Não volte a executar o `seed` nem as migrações anteriores.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 
@@ -131,11 +139,17 @@ Depois de confirmar o acesso, remova `BOOTSTRAP_TOKEN` das variáveis locais e d
 2. No Cloudflare Pages, escolha esse repositório.
 3. Defina o comando de build como `npm run build` e a pasta de saída como `dist`.
 4. Em **Settings → Environment variables**, configure `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (ou a chave antiga `SUPABASE_SERVICE_ROLE_KEY`) e, apenas no primeiro arranque, `BOOTSTRAP_TOKEN`.
-5. Para alertas por email, configure também `RESEND_API_KEY`, `ALERT_EMAIL_FROM` e `ALERT_EMAIL_TO`. O domínio do remetente tem de estar validado no Resend; vários destinatários podem ser separados por vírgulas.
+5. Para emails automáticos, crie uma conta no Resend, valide o domínio do remetente e configure `RESEND_API_KEY`, `ALERT_EMAIL_FROM`, `APP_URL` e `JOB_SECRET`. Os destinatários são depois definidos em **Emails automáticos** na aplicação.
 6. Não defina `COOKIE_SECURE=false` em produção.
 7. Publique, crie o administrador pelo endpoint `/api/bootstrap` e remova imediatamente `BOOTSTRAP_TOKEN`.
 
 Os planos gratuitos eram adequados à arquitetura à data de preparação, mas os limites e termos dos fornecedores podem mudar e devem ser confirmados antes da publicação institucional.
+
+### Agendamento dos emails
+
+No Supabase, crie uma tarefa **Cron** de 15 em 15 minutos que efetue um pedido HTTP `POST` para `https://SEU-ENDERECO.pages.dev/api/jobs/email`, com o cabeçalho `Authorization: Bearer VALOR_DE_JOB_SECRET`. Use exatamente o mesmo segredo configurado no Cloudflare. A tarefa apenas verifica os horários; a fila impede duplicados e repete temporariamente os envios falhados.
+
+Depois da publicação, abra **Emails automáticos**, defina os destinatários da administração e manutenção, os horários de fecho de cada quiosque, ative os emails e use **Enviar teste**.
 
 ## Fotografias e documentos
 
@@ -199,5 +213,5 @@ Esta suite chama as funções SQL reais e verifica alugueres simultâneos, devol
 - Upload privado de fotografias e documentos.
 - Formulário completo para intervenções e custos de manutenção.
 - Anonimização automática por prazo de retenção definido.
-- Notificações externas e reservas.
+- Reservas.
 - Migração para servidor próprio mantendo PostgreSQL e a mesma API.

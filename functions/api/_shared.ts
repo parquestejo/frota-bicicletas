@@ -8,6 +8,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   ALERT_EMAIL_FROM?: string;
   ALERT_EMAIL_TO?: string;
+  APP_URL?: string;
+  JOB_SECRET?: string;
 }
 export type Ctx = { env: Env; user?: any; session?: any; csrf?: string };
 export const securityHeaders = {

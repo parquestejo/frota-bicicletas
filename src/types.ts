@@ -25,6 +25,9 @@ export interface Kiosk {
   id: string;
   name: string;
   allows_rentals?: boolean;
+  closure_due_time?: string;
+  closure_grace_minutes?: number;
+  operating_days?: number[];
 }
 export interface Bike {
   id: string;
@@ -44,6 +47,7 @@ export interface RentalItem {
   id: string;
   bike_id: string;
   returned_at?: string;
+  return_kiosk_id?: string;
   anomaly: boolean;
   anomaly_description?: string;
   bike?: Bike;
@@ -58,13 +62,15 @@ export interface Rental {
   customer_contact?: string;
   charged_amount: number;
   start_kiosk_id: string;
-  status: "Em aberto" | "Concluído";
+  status: "Em aberto" | "Concluído" | "Anulado";
   started_at: string;
   returned_at?: string;
   items: RentalItem[];
   start_kiosk?: Kiosk;
   started_by_user?: User;
   returned_by_user?: User;
+  corrected_at?: string;
+  correction_reason?: string;
 }
 export interface MaintenanceIntervention {
   id: string;
@@ -88,6 +94,7 @@ export interface Fault {
   usable: boolean;
   status: string;
   created_at: string;
+  resolved_at?: string;
   notes?: string;
   created_by_user?: User;
   interventions?: MaintenanceIntervention[];
@@ -112,6 +119,8 @@ export interface DailyClosure {
   submitted_at?: string;
   created_at: string;
   updated_at: string;
+  corrected_at?: string;
+  correction_reason?: string;
   kiosk?: Kiosk;
   user?: User;
 }

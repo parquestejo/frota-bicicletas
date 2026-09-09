@@ -10,6 +10,7 @@ import { handleRentalRoutes } from "./routes/rentals";
 import { handleFaultAndUserRoutes } from "./routes/faults-users";
 import { handleDailyAndActivityRoutes } from "./routes/daily-activity";
 import { handleNotificationRoutes } from "./routes/notifications";
+import { flushEmailOutbox, runScheduledEmailJobs } from "./email";
 
 export const onRequest: PagesFunction<Env> = async ({
   request,
@@ -25,10 +26,15 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204, headers: securityHeaders });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "1.11.1",
+        version: "1.12.1",
         routing: "array-safe",
         database_errors: "detailed",
       });
+    if (route === "/jobs/email" && request.method === "POST") {
+      if (!env.JOB_SECRET || request.headers.get("Authorization") !== `Bearer ${env.JOB_SECRET}`)
+        return err("Tarefa automática não autorizada.", 403);
+      return json(await runScheduledEmailJobs(ctx));
+    }
     if (route === "/bootstrap" && request.method === "POST") {
       if (
         !env.BOOTSTRAP_TOKEN ||
@@ -150,7 +156,10 @@ export const onRequest: PagesFunction<Env> = async ({
       const response = await handler(ctx, request, route, parts);
       if (response) {
         if (!["GET", "HEAD"].includes(request.method))
-          waitUntil(flushPendingAlertEmails(ctx).catch((error) => console.error("alert_email", error)));
+          waitUntil(Promise.all([
+            flushPendingAlertEmails(ctx),
+            flushEmailOutbox(ctx),
+          ]).catch((error) => console.error("alert_email", error)));
         return response;
       }
     }
@@ -159,6 +168,25 @@ export const onRequest: PagesFunction<Env> = async ({
     console.error(e);
     const m = String((e as Error).message);
     if (e instanceof DbError) {
+      const detail = e.detail.toLowerCase();
+      if (detail.includes("bike_has_open_rental"))
+        return err("Esta bicicleta ainda tem um aluguer em aberto. Registe primeiro a devolução e depois atualize a avaria.", 409);
+      if (detail.includes("other_open_faults"))
+        return err("Esta bicicleta tem outra avaria pendente. Resolva ou cancele primeiro a outra ocorrência, ou mantenha a bicicleta indisponível.", 409);
+      if (detail.includes("final_status_required"))
+        return err("Ao resolver a avaria, selecione o estado final da bicicleta.", 400);
+      if (detail.includes("invalid_fault_status"))
+        return err("O estado selecionado para a avaria não é válido.", 400);
+      if (detail.includes("fault_not_found"))
+        return err("A ocorrência já não existe. Atualize a página.", 404);
+      if (detail.includes("bike_has_open_fault"))
+        return err("A bicicleta tem uma avaria pendente. Atualize a ocorrência na área de Avarias e manutenção.", 409);
+      if (detail.includes("rental_required_for_rented_status"))
+        return err("O estado Alugada só pode ser atribuído através de um aluguer.", 409);
+      if (detail.includes("invalid_kiosk"))
+        return err("A localização selecionada não é válida.", 400);
+      if (detail.includes("invalid_bike_status"))
+        return err("O estado selecionado para a bicicleta não é válido.", 400);
       if (e.code === "missing_url")
         return err(
           "Falta configurar SUPABASE_URL no Cloudflare e voltar a publicar.",
@@ -182,7 +210,9 @@ export const onRequest: PagesFunction<Env> = async ({
       if (e.code === "23505")
         return err("Já existe um registo com estes dados.", 409);
       return err(
-        `Erro de base de dados: código ${e.code}, estado ${e.status}.`,
+        e.code === "P0001"
+          ? `Não foi possível concluir a operação: ${e.detail || "regra de integridade não identificada"}.`
+          : `Erro de base de dados: código ${e.code}, estado ${e.status}.`,
         500,
       );
     }

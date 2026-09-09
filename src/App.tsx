@@ -24,6 +24,7 @@ import { Activity } from "./Activity";
 import { DailyClosures } from "./DailyClosures";
 import { FeedbackProvider } from "./Feedback";
 import { NotificationCenter } from "./Notifications";
+import { EmailSettings } from "./EmailSettings";
 
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [username, setUsername] = useState("");
@@ -201,6 +202,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
       ["/relatorios", "Relatórios"],
       ["/atividade", "Atividade"],
       ["/utilizadores", "Utilizadores"],
+      ["/emails", "Emails automáticos"],
     );
   return (
     <div className="shell">
@@ -299,6 +301,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
             path="/utilizadores"
             element={user.role === "admin" ? <Users /> : <Navigate to="/" />}
           />
+          <Route path="/emails" element={user.role === "admin" ? <EmailSettings /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

@@ -95,6 +95,12 @@ const emptyStats: Stats = {
   charged_total: 0,
 };
 
+function ClosureCorrection({ closure, onClose, onSaved }: { closure: DailyClosure; onClose: () => void; onSaved: () => void }) {
+  const { notify } = useFeedback();
+  const [cardTotal,setCardTotal]=useState(String(closure.card_total)), [observations,setObservations]=useState(closure.observations || ""), [reason,setReason]=useState(""), [receipt,setReceipt]=useState<File|null>(null), [busy,setBusy]=useState(false);
+  return <section className="card admin-correction-panel"><div className="title"><div><h2>Corrigir fecho de {closure.report_date}</h2><p>{closure.kiosk?.name} · {closure.user?.full_name}</p></div><button className="text" onClick={onClose}>Cancelar</button></div><div className="form-grid"><label>Valor Multibanco (€)<input type="number" min="0" step=".01" value={cardTotal} onChange={(e)=>setCardTotal(e.target.value)}/></label><label>Substituir talão (opcional)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e)=>setReceipt(e.target.files?.[0] || null)}/><small>O talão anterior permanece referenciado no histórico.</small></label></div><label>Observações<textarea value={observations} onChange={(e)=>setObservations(e.target.value)}/></label><label>Motivo obrigatório<textarea value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="Explique o erro e a correção efetuada."/></label><button className="primary" disabled={busy || reason.trim().length<5 || Number(cardTotal)<0} onClick={async()=>{setBusy(true);try{await patch(`/daily-closures/${closure.id}/correct`,{card_total:Number(cardTotal),observations,reason:reason.trim(),receipt:receipt?{name:receipt.name,type:receipt.type,data:await fileData(receipt)}:undefined});notify("Fecho corrigido, mantendo o histórico anterior.","success");onSaved();onClose();}catch(e){notify((e as Error).message,"error");}finally{setBusy(false);}}}>{busy?"A guardar…":"Guardar correção"}</button></section>;
+}
+
 export function DailyClosures({ user }: { user: User }) {
   const { notify } = useFeedback();
   const [data, setData] = useState<{
@@ -112,6 +118,7 @@ export function DailyClosures({ user }: { user: User }) {
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState(""),
     [reopenId, setReopenId] = useState(""),
+    [correcting, setCorrecting] = useState<DailyClosure | null>(null),
     [kioskFilter, setKioskFilter] = useState("");
   async function load() {
     try {
@@ -350,6 +357,7 @@ export function DailyClosures({ user }: { user: User }) {
           </div>
         )}
       </section>
+      {correcting && <ClosureCorrection closure={correcting} onClose={()=>setCorrecting(null)} onSaved={load}/>} 
       <div className="title section-title">
         <div>
           <h2>
@@ -459,7 +467,7 @@ export function DailyClosures({ user }: { user: User }) {
                   </td>
                   {user.role === "admin" && (
                     <td>
-                      {x.status === "Submetido" ? (
+                      {x.status === "Submetido" ? <div className="actions"><button className="text" onClick={()=>setCorrecting(x)}>Corrigir</button>{(
                         reopenId === x.id ? <span className="inline-confirm">
                           <button className="small-button" onClick={async () => {
                             try {
@@ -471,7 +479,7 @@ export function DailyClosures({ user }: { user: User }) {
                           }}>Confirmar</button>
                           <button className="text" onClick={() => setReopenId("")}>Cancelar</button>
                         </span> : <button className="text" onClick={() => setReopenId(x.id)}>Reabrir</button>
-                      ) : (
+                      )}</div> : (
                         "—"
                       )}
                     </td>

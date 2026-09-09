@@ -12,7 +12,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const discrepancyOwner =
         ctx.user.role === "admin" ? "" : `&created_by=eq.${q(ctx.user.id)}`;
       const rentalSelect = "select=*,start_kiosk:kiosks(*),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
-      const [openRentals, completedRentals, bikes, kiosks, discrepancies, summary] = await Promise.all([
+      const [openRentals, completedRentals, annulledRentals, bikes, correctionBikes, kiosks, discrepancies, summary] = await Promise.all([
         db(
           ctx,
           `rentals?${rentalSelect}&status=eq.Em%20aberto${owner}&order=started_at.desc`,
@@ -21,10 +21,12 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           ctx,
           `rentals?${rentalSelect}&status=eq.Concluído${owner}&order=started_at.desc&limit=500`,
         ),
+        ctx.user.role === "admin" ? db(ctx, `rentals?${rentalSelect}&status=eq.Anulado&order=started_at.desc&limit=500`) : Promise.resolve([]),
         db(
           ctx,
           "bikes?active=eq.true&status=eq.Disponível&select=*,kiosk:kiosks!inner(*)&kiosk.allows_rentals=eq.true&order=code",
         ),
+        ctx.user.role === "admin" ? db(ctx, "bikes?select=*,kiosk:kiosks(*)&order=code") : Promise.resolve([]),
         db(
           ctx,
           "kiosks?active=eq.true&allows_rentals=eq.true&select=*&order=name",
@@ -38,8 +40,27 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           body: JSON.stringify({ p_user_id: ctx.user.role === "admin" ? null : ctx.user.id }),
         }),
       ]);
-      const rentals=[...openRentals,...completedRentals].sort((a:any,b:any)=>String(b.started_at).localeCompare(String(a.started_at)));
-      return json({ rentals, available_bikes: bikes, kiosks, discrepancies, summary });
+      const rentals=[...openRentals,...completedRentals,...annulledRentals].sort((a:any,b:any)=>String(b.started_at).localeCompare(String(a.started_at)));
+      return json({ rentals, available_bikes: bikes, correction_bikes: correctionBikes, kiosks, discrepancies, summary });
+    }
+    if (parts[0] === "rentals" && parts[1] && parts[2] === "correct" && request.method === "PATCH") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const b = await body(request), reason = String(b.reason || "").trim(), amount = Number(b.charged_amount);
+      if (reason.length < 5) return err("Indique o motivo da correção (pelo menos 5 caracteres).");
+      if (!String(b.customer_ref || "").trim()) return err("Indique a referência do cliente.");
+      if (!Number.isFinite(amount) || amount < 0) return err("Indique um valor cobrado válido.");
+      const current = (await db(ctx, `rentals?id=eq.${q(parts[1])}&select=id,status`))[0];
+      if (!current) return err("Aluguer não encontrado.", 404);
+      if (current.status === "Anulado") return err("Este aluguer já está anulado.", 409);
+      const result = await db(ctx, "rpc/admin_correct_rental", { method: "POST", body: JSON.stringify({
+        p_rental_id: parts[1], p_customer_ref: String(b.customer_ref).trim(),
+        p_customer_contact: String(b.customer_contact || "").trim() || null,
+        p_charged_amount: amount, p_start_kiosk_id: b.start_kiosk_id,
+        p_started_at: b.started_at, p_returned_at: b.returned_at || null,
+        p_items: Array.isArray(b.items) ? b.items : null, p_void: !!b.void,
+        p_user_id: ctx.user.id, p_reason: reason,
+      }) });
+      return json(result);
     }
     if (route === "/rentals" && request.method === "POST") {
       const b = await body(request),

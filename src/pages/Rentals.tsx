@@ -159,6 +159,31 @@ function RentalCorrection({
   );
 }
 
+const localInput = (value?: string) => value ? new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60000).toISOString().slice(0,16) : "";
+function AdminRentalCorrection({ rental, bikes, kiosks, onSaved }: { rental: Rental; bikes: Bike[]; kiosks: Kiosk[]; onSaved: () => void }) {
+  const { notify } = useFeedback();
+  const [open,setOpen]=useState(false), [busy,setBusy]=useState(false), [voidRental,setVoidRental]=useState(false);
+  const [form,setForm]=useState(() => ({ customer_ref:rental.customer_ref, customer_contact:rental.customer_contact || "", charged_amount:String(rental.charged_amount), start_kiosk_id:rental.start_kiosk_id, started_at:localInput(rental.started_at), returned_at:localInput(rental.returned_at), reason:"", items:rental.items.map((item) => ({ id:item.id,bike_id:item.bike_id,return_kiosk_id:item.return_kiosk_id || item.return_kiosk?.id || rental.start_kiosk_id,returned_at:localInput(item.returned_at || rental.returned_at) })) }));
+  async function save() {
+    if (form.reason.trim().length < 5) return notify("Indique o motivo da correção.","error");
+    setBusy(true); try {
+      await patch(`/rentals/${rental.id}/correct`, { ...form, charged_amount:Number(form.charged_amount), started_at:new Date(form.started_at).toISOString(), returned_at:form.returned_at ? new Date(form.returned_at).toISOString() : null, items:form.items.map((item) => ({ ...item, returned_at:item.returned_at ? new Date(item.returned_at).toISOString() : null })), void:voidRental });
+      notify(voidRental ? "Aluguer anulado, mantendo o histórico." : "Aluguer corrigido.","success"); setOpen(false); onSaved();
+    } catch(e) { notify((e as Error).message,"error"); } finally { setBusy(false); }
+  }
+  return <div className="admin-correction">
+    <button className="text" onClick={() => setOpen(!open)}>{open ? "Fechar" : "Correção administrativa"}</button>
+    {open && <div className="correction-panel admin-correction-panel">
+      <h3>Corrigir {rental.reference}</h3>
+      <div className="form-grid"><label>Referência do cliente<input value={form.customer_ref} onChange={(e)=>setForm({...form,customer_ref:e.target.value})}/></label>{rental.status === "Em aberto" && <label>Contacto temporário<input value={form.customer_contact} onChange={(e)=>setForm({...form,customer_contact:e.target.value})}/></label>}<label>Valor cobrado (€)<input type="number" min="0" step=".01" value={form.charged_amount} onChange={(e)=>setForm({...form,charged_amount:e.target.value})}/></label><label>Quiosque de saída<select value={form.start_kiosk_id} onChange={(e)=>setForm({...form,start_kiosk_id:e.target.value})}>{kiosks.map((k)=><option key={k.id} value={k.id}>{k.name}</option>)}</select></label><label>Início<input type="datetime-local" value={form.started_at} onChange={(e)=>setForm({...form,started_at:e.target.value})}/></label>{rental.status === "Concluído" && <label>Fim do aluguer<input type="datetime-local" value={form.returned_at} onChange={(e)=>setForm({...form,returned_at:e.target.value})}/></label>}</div>
+      {rental.status === "Concluído" && <><h4>Itens e devoluções</h4>{form.items.map((item,index)=><div className="form-grid" key={item.id}><label>Item<select value={item.bike_id} onChange={(e)=>setForm({...form,items:form.items.map((x,i)=>i===index?{...x,bike_id:e.target.value}:x)})}>{bikes.map((b)=><option key={b.id} value={b.id}>{b.code} · {b.model}</option>)}</select></label><label>Local de devolução<select value={item.return_kiosk_id} onChange={(e)=>setForm({...form,items:form.items.map((x,i)=>i===index?{...x,return_kiosk_id:e.target.value}:x)})}>{kiosks.map((k)=><option key={k.id} value={k.id}>{k.name}</option>)}</select></label><label>Data da devolução<input type="datetime-local" value={item.returned_at} onChange={(e)=>setForm({...form,items:form.items.map((x,i)=>i===index?{...x,returned_at:e.target.value}:x)})}/></label></div>)}</>}
+      <label>Motivo obrigatório<textarea value={form.reason} onChange={(e)=>setForm({...form,reason:e.target.value})} placeholder="Explique o erro e a correção efetuada."/></label>
+      <label className="toggle-row"><input type="checkbox" checked={voidRental} onChange={(e)=>setVoidRental(e.target.checked)}/> Anular este aluguer (mantém o registo no histórico)</label>
+      <button className={voidRental?"danger":"primary"} disabled={busy || form.reason.trim().length<5} onClick={save}>{busy?"A guardar…":voidRental?"Confirmar anulação":"Guardar correção"}</button>
+    </div>}
+  </div>;
+}
+
 export function Rentals({ user }: { user: User }) {
   const { notify } = useFeedback();
   const [refresh, setRefresh] = useState(0),
@@ -172,6 +197,7 @@ export function Rentals({ user }: { user: User }) {
   const { data, error } = useLoad<{
     rentals: Rental[];
     available_bikes: Bike[];
+    correction_bikes: Bike[];
     kiosks: Kiosk[];
     discrepancies: RentalDiscrepancy[];
     summary: {
@@ -304,6 +330,7 @@ export function Rentals({ user }: { user: User }) {
                 availableBikes={data?.available_bikes || []}
                 onSaved={() => setRefresh((x) => x + 1)}
               />
+              {user.role === "admin" && <AdminRentalCorrection rental={r} bikes={data?.correction_bikes || []} kiosks={data?.kiosks || []} onSaved={() => setRefresh((x)=>x+1)} />}
               <button
                 className="primary full"
                 onClick={() => {
@@ -355,32 +382,36 @@ export function Rentals({ user }: { user: User }) {
             ))}
         </section>
       )}
-      <h2>Concluídos recentes</h2>
+      <h2>Concluídos e anulados recentes</h2>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Referência</th>
               <th>Cliente</th>
+              <th>Estado</th>
               <th>Itens</th>
               <th>Valor</th>
               <th>Registado por</th>
               <th>Início</th>
               <th>Fim</th>
+              {user.role === "admin" && <th>Ação</th>}
             </tr>
           </thead>
           <tbody>
             {visibleRentals
-              .filter((r) => r.status === "Concluído")
+              .filter((r) => r.status !== "Em aberto")
               .map((r) => (
                 <tr key={r.id}>
                   <td>{r.reference}</td>
                   <td>{r.customer_ref}</td>
+                  <td><Badge>{r.status}</Badge>{r.corrected_at && <small className="block-meta">Corrigido</small>}</td>
                   <td>{r.items.map((i) => i.bike?.code).join(", ")}</td>
                   <td>{rentalMoney(r.charged_amount)}</td>
                   <td>{r.started_by_user?.full_name || "—"}</td>
                   <td>{fmt(r.started_at)}</td>
                   <td>{fmt(r.returned_at)}</td>
+                  {user.role === "admin" && <td><AdminRentalCorrection rental={r} bikes={data?.correction_bikes || []} kiosks={data?.kiosks || []} onSaved={() => setRefresh((x)=>x+1)} /></td>}
                 </tr>
               ))}
           </tbody>

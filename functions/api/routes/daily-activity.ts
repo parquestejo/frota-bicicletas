@@ -147,6 +147,41 @@ export async function handleDailyAndActivityRoutes(ctx: Ctx, request: Request, r
     if (
       parts[0] === "daily-closures" &&
       parts[1] &&
+      parts[2] === "correct" &&
+      request.method === "PATCH"
+    ) {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const old = (await db(ctx, `daily_closures?id=eq.${q(parts[1])}&select=*`))[0];
+      if (!old) return err("Fecho diário não encontrado.", 404);
+      if (old.status !== "Submetido") return err("Só é possível corrigir um fecho submetido.", 409);
+      const b = await body(request), reason = String(b.reason || "").trim(), cardTotal = Number(b.card_total);
+      if (reason.length < 5) return err("Indique o motivo da correção (pelo menos 5 caracteres).");
+      if (!Number.isFinite(cardTotal) || cardTotal < 0) return err("Indique um valor de Multibanco válido.");
+      let receiptPath = old.receipt_path, receiptName = old.receipt_name, receiptType = old.receipt_content_type;
+      if (b.receipt?.data) {
+        const safeName = String(b.receipt.name || "talao").replace(/[^a-zA-Z0-9._-]/g, "_"), ext = safeName.includes(".") ? safeName.split(".").pop() : "bin";
+        receiptPath = `${old.user_id}/${old.report_date}-${old.kiosk_id}-correcao-${Date.now()}.${ext}`;
+        const uploadError = await uploadReceipt(ctx, receiptPath, String(b.receipt.data), String(b.receipt.type || ""));
+        if (uploadError) return uploadError;
+        receiptName = String(b.receipt.name || "Talão"); receiptType = String(b.receipt.type || "application/octet-stream");
+      }
+      const stats = await db(ctx, "rpc/daily_closure_stats", { method: "POST", body: JSON.stringify({ p_report_date: old.report_date, p_kiosk_id: old.kiosk_id, p_user_id: old.user_id }) });
+      const values = {
+        rental_count: Number(stats?.rental_count || 0), bike_count: Number(stats?.bike_count || 0),
+        electric_count: Number(stats?.electric_count || 0), conventional_count: Number(stats?.conventional_count || 0),
+        child_count: Number(stats?.child_count || 0), accessory_count: Number(stats?.accessory_count || 0),
+        card_total: cardTotal, observations: String(b.observations || "").trim() || null,
+        receipt_path: receiptPath, receipt_name: receiptName, receipt_content_type: receiptType,
+        corrected_at: new Date().toISOString(), corrected_by: ctx.user.id, correction_reason: reason,
+      };
+      const rows = await db(ctx, `daily_closures?id=eq.${old.id}`, { method: "PATCH", body: JSON.stringify(values) });
+      await db(ctx, "daily_closure_revisions", { method: "POST", body: JSON.stringify({ closure_id: old.id, corrected_by: ctx.user.id, reason, old_value: old, new_value: rows[0] }) });
+      await audit(ctx, "corrigir", "fecho diário", old.id, old, rows[0], reason);
+      return json(rows[0]);
+    }
+    if (
+      parts[0] === "daily-closures" &&
+      parts[1] &&
       parts[2] === "receipt" &&
       request.method === "GET"
     ) {
