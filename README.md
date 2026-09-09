@@ -1,6 +1,10 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 1.12.1
+## Versão 1.12.3
+
+- Filtros de avarias por estado e intervalo de datas, com contagem de resultados e ordenação decrescente por data.
+
+- Relação explícita entre fechos diários e o vigilante, evitando o erro `PGRST201` introduzido pela relação de correção administrativa.
 
 - Mensagens claras para regras de integridade ao atualizar avarias e bicicletas, em vez do código técnico `P0001`.
 

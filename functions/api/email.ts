@@ -66,7 +66,7 @@ async function renderEmail(ctx: Ctx, job: EmailJob) {
     return { subject, html, text: [subject, ...rows.map(([label, value]) => `${label}: ${value || "—"}`)].join("\n") };
   }
   if (job.event_type === "closure_submitted") {
-    const closure = (await db(ctx, `daily_closures?id=eq.${q(job.entity_id || "")}&select=*,kiosk:kiosks(name),user:users(full_name,username)&limit=1`))[0];
+    const closure = (await db(ctx, `daily_closures?id=eq.${q(job.entity_id || "")}&select=*,kiosk:kiosks(name),user:users!daily_closures_user_id_fkey(full_name,username)&limit=1`))[0];
     if (!closure) throw new Error("O fecho associado ao email já não existe.");
     const subject = `Fecho diário — ${closure.kiosk?.name} — ${closure.report_date}`;
     const rows = [

@@ -157,6 +157,7 @@ export function Faults() {
   const [refresh, setRefresh] = useState(0),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState(""),
+    [statusFilter, setStatusFilter] = useState(""),
     [show, setShow] = useState(
       new URLSearchParams(location.search).has("nova"),
     );
@@ -164,9 +165,9 @@ export function Faults() {
     "/faults",
     refresh,
   );
-  const visibleFaults = (data?.faults || []).filter((f) =>
-    inDateRange(f.created_at, dateFrom, dateTo),
-  );
+  const visibleFaults = [...(data?.faults || [])]
+    .filter((f) => (!statusFilter || f.status === statusFilter) && inDateRange(f.created_at, dateFrom, dateTo))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const [form, setForm] = useState({
     bike_id: "",
     category: "travões",
@@ -195,12 +196,21 @@ export function Faults() {
         </button>
       </div>
       <MaintenanceSummary faults={data?.faults || []} />
-      <DateRange
-        from={dateFrom}
-        to={dateTo}
-        onFrom={setDateFrom}
-        onTo={setDateTo}
-      />
+      <section className="card fault-filters" aria-label="Filtros de avarias">
+        <label>
+          Estado
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">Todos os estados</option>
+            {faultStatuses.map((status) => <option key={status}>{status}</option>)}
+          </select>
+        </label>
+        <div>
+          <span className="filter-label">Data de comunicação</span>
+          <DateRange from={dateFrom} to={dateTo} onFrom={setDateFrom} onTo={setDateTo} />
+        </div>
+        {(statusFilter || dateFrom || dateTo) && <button type="button" className="secondary" onClick={() => { setStatusFilter(""); setDateFrom(""); setDateTo(""); }}>Limpar filtros</button>}
+        <small className="filter-result">{visibleFaults.length} {visibleFaults.length === 1 ? "ocorrência" : "ocorrências"}</small>
+      </section>
       {show && (
         <section className="card form">
           <label>
@@ -323,6 +333,7 @@ export function Faults() {
                 </td>
               </tr>
             ))}
+            {!visibleFaults.length && <tr><td colSpan={8} className="empty-table">Não existem avarias com os filtros selecionados.</td></tr>}
           </tbody>
         </table>
       </div>

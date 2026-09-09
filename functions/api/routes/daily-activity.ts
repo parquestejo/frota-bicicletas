@@ -15,7 +15,7 @@ export async function handleDailyAndActivityRoutes(ctx: Ctx, request: Request, r
       const [closures, kiosks] = await Promise.all([
         dbAll(
           ctx,
-          `daily_closures?select=*,kiosk:kiosks(*),user:users(full_name,username)&order=report_date.desc,created_at.desc${owner}`,
+          `daily_closures?select=*,kiosk:kiosks(*),user:users!daily_closures_user_id_fkey(full_name,username)&order=report_date.desc,created_at.desc${owner}`,
         ),
         db(
           ctx,

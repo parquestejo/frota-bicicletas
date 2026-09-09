@@ -84,10 +84,10 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         const rentalKiosks=kiosks.filter((k:any)=>k.allows_rentals);
         const [periodRentals,periodClosures,openRentalDetails,discrepancies,recentClosureGroups]=await Promise.all([
           db(ctx,`rentals?started_at=gte.${q(previousMonthStart+'T00:00:00Z')}&select=id,started_at,status,items:rental_items(id,bike:bikes(asset_type))`),
-          db(ctx,`daily_closures?report_date=gte.${q(previousMonthStart)}&select=*,kiosk:kiosks(name),user:users(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast`),
+          db(ctx,`daily_closures?report_date=gte.${q(previousMonthStart)}&select=*,kiosk:kiosks(name),user:users!daily_closures_user_id_fkey(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast`),
           db(ctx,'rentals?status=eq.Em%20aberto&select=id,reference,customer_ref,customer_contact,started_at,start_kiosk:kiosks(name),started_by_user:users!rentals_started_by_fkey(full_name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.asc'),
           db(ctx,'rental_discrepancies?status=eq.Pendente&select=id'),
-          Promise.all(rentalKiosks.map((k:any)=>db(ctx,`daily_closures?kiosk_id=eq.${q(k.id)}&status=eq.Submetido&select=*,kiosk:kiosks(name),user:users(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast&limit=3`)))
+          Promise.all(rentalKiosks.map((k:any)=>db(ctx,`daily_closures?kiosk_id=eq.${q(k.id)}&status=eq.Submetido&select=*,kiosk:kiosks(name),user:users!daily_closures_user_id_fkey(full_name,username)&order=report_date.desc,submitted_at.desc.nullslast&limit=3`)))
         ]);
         const rentalStats=(from:string,to?:string)=>{const list=periodRentals.filter((r:any)=>{const d=dateKey(r.started_at);return d>=from&&(!to||d<to)});return{rentals:list.length,items:list.reduce((sum:number,r:any)=>sum+(r.items?.length||0),0)}};
         const revenueStats=(from:string,to?:string)=>periodClosures.filter((c:any)=>c.status==='Submetido'&&c.report_date>=from&&(!to||c.report_date<to)).reduce((sum:number,c:any)=>sum+Number(c.card_total||0),0);

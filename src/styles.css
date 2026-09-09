@@ -407,6 +407,11 @@ textarea {
 .filters input {
   flex: 1;
 }
+.fault-filters { display:grid; grid-template-columns:minmax(180px, .7fr) minmax(340px, 2fr) auto auto; gap:1rem; align-items:end; margin-bottom:1rem; }
+.fault-filters .date-range { margin:0; }
+.filter-label { display:block; font-weight:700; margin-bottom:.35rem; }
+.filter-result { align-self:center; white-space:nowrap; }
+.empty-table { text-align:center; color:var(--dark-gray); padding:2rem; }
 .table-wrap {
   overflow: auto;
   background: #fff;
@@ -648,6 +653,7 @@ th {
   .filters {
     flex-direction: column;
   }
+  .fault-filters { grid-template-columns:1fr; align-items:stretch; }
   .user-name {
     display: none;
   }
