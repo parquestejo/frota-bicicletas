@@ -195,7 +195,7 @@ export function Faults() {
           Comunicar avaria
         </button>
       </div>
-      <MaintenanceSummary faults={data?.faults || []} />
+      <MaintenanceSummary faults={visibleFaults} />
       <section className="card fault-filters" aria-label="Filtros de avarias">
         <label>
           Estado

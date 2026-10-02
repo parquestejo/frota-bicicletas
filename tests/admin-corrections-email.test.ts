@@ -26,4 +26,10 @@ describe("correções administrativas e emails", () => {
     }
     expect(inventory).toContain("users!daily_closures_user_id_fkey");
   });
+  it("permite ao administrador corrigir manualmente os totais de um fecho", () => {
+    const correction = closures.slice(closures.indexOf('parts[2] === "correct"'), closures.indexOf('parts[2] === "receipt"'));
+    expect(correction).toContain('"rental_count", "electric_count", "conventional_count", "child_count", "accessory_count"');
+    expect(correction).toContain("bike_count: counts.electric_count + counts.conventional_count + counts.child_count");
+    expect(correction).not.toContain('"rpc/daily_closure_stats"');
+  });
 });

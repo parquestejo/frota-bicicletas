@@ -97,8 +97,27 @@ const emptyStats: Stats = {
 
 function ClosureCorrection({ closure, onClose, onSaved }: { closure: DailyClosure; onClose: () => void; onSaved: () => void }) {
   const { notify } = useFeedback();
-  const [cardTotal,setCardTotal]=useState(String(closure.card_total)), [observations,setObservations]=useState(closure.observations || ""), [reason,setReason]=useState(""), [receipt,setReceipt]=useState<File|null>(null), [busy,setBusy]=useState(false);
-  return <section className="card admin-correction-panel"><div className="title"><div><h2>Corrigir fecho de {closure.report_date}</h2><p>{closure.kiosk?.name} · {closure.user?.full_name}</p></div><button className="text" onClick={onClose}>Cancelar</button></div><div className="form-grid"><label>Valor Multibanco (€)<input type="number" min="0" step=".01" value={cardTotal} onChange={(e)=>setCardTotal(e.target.value)}/></label><label>Substituir talão (opcional)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e)=>setReceipt(e.target.files?.[0] || null)}/><small>O talão anterior permanece referenciado no histórico.</small></label></div><label>Observações<textarea value={observations} onChange={(e)=>setObservations(e.target.value)}/></label><label>Motivo obrigatório<textarea value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="Explique o erro e a correção efetuada."/></label><button className="primary" disabled={busy || reason.trim().length<5 || Number(cardTotal)<0} onClick={async()=>{setBusy(true);try{await patch(`/daily-closures/${closure.id}/correct`,{card_total:Number(cardTotal),observations,reason:reason.trim(),receipt:receipt?{name:receipt.name,type:receipt.type,data:await fileData(receipt)}:undefined});notify("Fecho corrigido, mantendo o histórico anterior.","success");onSaved();onClose();}catch(e){notify((e as Error).message,"error");}finally{setBusy(false);}}}>{busy?"A guardar…":"Guardar correção"}</button></section>;
+  const [form,setForm]=useState({rental_count:String(closure.rental_count),electric_count:String(closure.electric_count),conventional_count:String(closure.conventional_count),child_count:String(closure.child_count),accessory_count:String(closure.accessory_count),card_total:String(closure.card_total)}), [observations,setObservations]=useState(closure.observations || ""), [reason,setReason]=useState(""), [receipt,setReceipt]=useState<File|null>(null), [busy,setBusy]=useState(false);
+  const setCount=(field:keyof typeof form,value:string)=>setForm((current)=>({...current,[field]:value}));
+  const countFields=[form.rental_count,form.electric_count,form.conventional_count,form.child_count,form.accessory_count];
+  const validCounts=countFields.every((value)=>Number.isSafeInteger(Number(value))&&Number(value)>=0&&Number(value)<=10000);
+  const validCard=Number.isFinite(Number(form.card_total))&&Number(form.card_total)>=0;
+  return <section className="card admin-correction-panel">
+    <div className="title"><div><h2>Corrigir fecho de {closure.report_date}</h2><p>{closure.kiosk?.name} · {closure.user?.full_name}</p></div><button className="text" onClick={onClose}>Cancelar</button></div>
+    <p className="notice">Introduza os totais reais conhecidos. Esta correção atualiza o fecho e fica auditada, mas não cria alugueres individuais no histórico.</p>
+    <div className="form-grid">
+      <label>Alugueres realizados<input type="number" min="0" step="1" value={form.rental_count} onChange={(e)=>setCount("rental_count",e.target.value)}/></label>
+      <label>Bicicletas elétricas<input type="number" min="0" step="1" value={form.electric_count} onChange={(e)=>setCount("electric_count",e.target.value)}/></label>
+      <label>Bicicletas convencionais<input type="number" min="0" step="1" value={form.conventional_count} onChange={(e)=>setCount("conventional_count",e.target.value)}/></label>
+      <label>Bicicletas de criança<input type="number" min="0" step="1" value={form.child_count} onChange={(e)=>setCount("child_count",e.target.value)}/></label>
+      <label>Acessórios alugados<input type="number" min="0" step="1" value={form.accessory_count} onChange={(e)=>setCount("accessory_count",e.target.value)}/></label>
+      <label>Valor Multibanco (€)<input type="number" min="0" step=".01" value={form.card_total} onChange={(e)=>setCount("card_total",e.target.value)}/></label>
+      <label>Substituir talão (opcional)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e)=>setReceipt(e.target.files?.[0] || null)}/><small>O talão anterior permanece referenciado no histórico.</small></label>
+    </div>
+    <label>Observações<textarea value={observations} onChange={(e)=>setObservations(e.target.value)}/></label>
+    <label>Motivo obrigatório<textarea value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="Explique o erro e a correção efetuada."/></label>
+    <button className="primary" disabled={busy || reason.trim().length<5 || !validCounts || !validCard} onClick={async()=>{setBusy(true);try{await patch(`/daily-closures/${closure.id}/correct`,{rental_count:Number(form.rental_count),electric_count:Number(form.electric_count),conventional_count:Number(form.conventional_count),child_count:Number(form.child_count),accessory_count:Number(form.accessory_count),card_total:Number(form.card_total),observations,reason:reason.trim(),receipt:receipt?{name:receipt.name,type:receipt.type,data:await fileData(receipt)}:undefined});notify("Fecho corrigido, mantendo o histórico anterior.","success");onSaved();onClose();}catch(e){notify((e as Error).message,"error");}finally{setBusy(false);}}}>{busy?"A guardar…":"Guardar correção"}</button>
+  </section>;
 }
 
 export function DailyClosures({ user }: { user: User }) {

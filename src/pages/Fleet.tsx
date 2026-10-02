@@ -260,11 +260,12 @@ function FleetSummary({
     conventional = active.filter((b) => assetTypeOf(b) === "conventional"),
     child = active.filter((b) => assetTypeOf(b) === "child"),
     accessories = active.filter((b) => !isBicycle(b)),
-    available = active.filter((b) => b.status === "Disponível").length,
+    activeBicycles = active.filter(isBicycle),
+    available = activeBicycles.filter((b) => b.status === "Disponível").length,
     out = active.filter((b) =>
       ["Avariada", "Em manutenção", "Indisponível"].includes(b.status),
     ).length,
-    rate = active.length ? Math.round((available / active.length) * 100) : 0;
+    rate = activeBicycles.length ? Math.round((available / activeBicycles.length) * 100) : 0;
   const byStatus = (status: BikeStatus) => {
     const list = active.filter((b) => b.status === status);
     return {
@@ -382,7 +383,7 @@ function FleetSummary({
         <div className="card">
           <span>Disponibilidade</span>
           <b>{rate}%</b>
-          <small>{available} itens disponíveis</small>
+          <small>{available} bicicletas disponíveis</small>
         </div>
         {!hideOutOfService && (
           <div className="card alert-kpi">

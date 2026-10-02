@@ -1,6 +1,11 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 1.12.3
+## Versão 1.12.5
+
+O administrador pode corrigir manualmente os totais de alugueres, bicicletas por tipologia, acessórios e valor Multibanco de um fecho submetido. A correção exige justificação, mantém os valores anteriores no histórico e não cria alugueres individuais inexistentes.
+
+- Os filtros de manutenção atualizam também o resumo superior.
+- A percentagem de disponibilidade da Frota considera apenas bicicletas elétricas, convencionais e infantis, excluindo acessórios.
 
 - Filtros de avarias por estado e intervalo de datas, com contagem de resultados e ordenação decrescente por data.
 

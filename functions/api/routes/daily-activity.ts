@@ -157,6 +157,10 @@ export async function handleDailyAndActivityRoutes(ctx: Ctx, request: Request, r
       const b = await body(request), reason = String(b.reason || "").trim(), cardTotal = Number(b.card_total);
       if (reason.length < 5) return err("Indique o motivo da correção (pelo menos 5 caracteres).");
       if (!Number.isFinite(cardTotal) || cardTotal < 0) return err("Indique um valor de Multibanco válido.");
+      const countFields = ["rental_count", "electric_count", "conventional_count", "child_count", "accessory_count"] as const;
+      const counts = Object.fromEntries(countFields.map((field) => [field, Number(b[field])])) as Record<(typeof countFields)[number], number>;
+      if (countFields.some((field) => !Number.isSafeInteger(counts[field]) || counts[field] < 0 || counts[field] > 10000))
+        return err("Os totais do fecho têm de ser números inteiros entre 0 e 10000.");
       let receiptPath = old.receipt_path, receiptName = old.receipt_name, receiptType = old.receipt_content_type;
       if (b.receipt?.data) {
         const safeName = String(b.receipt.name || "talao").replace(/[^a-zA-Z0-9._-]/g, "_"), ext = safeName.includes(".") ? safeName.split(".").pop() : "bin";
@@ -165,11 +169,9 @@ export async function handleDailyAndActivityRoutes(ctx: Ctx, request: Request, r
         if (uploadError) return uploadError;
         receiptName = String(b.receipt.name || "Talão"); receiptType = String(b.receipt.type || "application/octet-stream");
       }
-      const stats = await db(ctx, "rpc/daily_closure_stats", { method: "POST", body: JSON.stringify({ p_report_date: old.report_date, p_kiosk_id: old.kiosk_id, p_user_id: old.user_id }) });
       const values = {
-        rental_count: Number(stats?.rental_count || 0), bike_count: Number(stats?.bike_count || 0),
-        electric_count: Number(stats?.electric_count || 0), conventional_count: Number(stats?.conventional_count || 0),
-        child_count: Number(stats?.child_count || 0), accessory_count: Number(stats?.accessory_count || 0),
+        ...counts,
+        bike_count: counts.electric_count + counts.conventional_count + counts.child_count,
         card_total: cardTotal, observations: String(b.observations || "").trim() || null,
         receipt_path: receiptPath, receipt_name: receiptName, receipt_content_type: receiptType,
         corrected_at: new Date().toISOString(), corrected_by: ctx.user.id, correction_reason: reason,
