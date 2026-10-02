@@ -83,6 +83,13 @@ export interface Rental {
   corrected_at?: string;
   correction_reason?: string;
 }
+export interface RentalPeriodUpdate {
+  additional_amount?: number;
+  charged_amount: number;
+  expected_amount: number;
+  tariff_amount?: number;
+  rental_period?: "hour" | "day";
+}
 export interface MaintenanceIntervention {
   id: string;
   intervention_date: string;

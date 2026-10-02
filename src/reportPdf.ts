@@ -5,6 +5,7 @@ export type RentalAnalyticsReport = {
   rental_count: number;
   item_count: number;
   revenue: number;
+  commercial_value?: number;
   average_duration_minutes: number;
   busiest_weekday: string;
   stockout_days: number;
@@ -90,7 +91,8 @@ export function createRentalAnalyticsPdf(report: RentalAnalyticsReport, from: st
 
   const cards = [
     ["Alugueres", String(report.rental_count)], ["Itens alugados", String(report.item_count)],
-    ["Receita Multibanco", money(report.revenue)], ["Duração média", duration(report.average_duration_minutes)],
+    ["Receita Multibanco", money(report.revenue)], ["Valor comercial", money(report.commercial_value || 0)],
+    ["Duração média", duration(report.average_duration_minutes)],
     ["Dia com maior procura", report.busiest_weekday || "—"], ["Dias sem bicicletas", String(report.stockout_days)],
   ];
   cards.forEach(([label, value], index) => {
@@ -102,7 +104,7 @@ export function createRentalAnalyticsPdf(report: RentalAnalyticsReport, from: st
   });
 
   autoTable(doc, {
-    startY: 117,
+    startY: 146,
     head: [["Modalidade", "Alugueres", "Leitura"]],
     body: [
       ["Pagos", report.paid_rental_count, "Valor superior a 0,00 €"],

@@ -62,6 +62,29 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       }) });
       return json(result);
     }
+    if (parts[0] === "rentals" && parts[1] && parts[2] === "extend-day" && request.method === "POST") {
+      const rental = (await db(ctx, `rentals?id=eq.${q(parts[1])}&select=id,started_by,status,rental_kind,rental_period`))[0];
+      if (!rental) return err("Aluguer não encontrado.", 404);
+      if (rental.status !== "Em aberto") return err("Só é possível prolongar um aluguer em aberto.", 409);
+      if (rental.rental_kind === "institutional") return err("As utilizações institucionais não têm período de aluguer.", 409);
+      if (rental.rental_period === "day") return err("Este aluguer já está registado como 1 dia.", 409);
+      if (ctx.user.role !== "admin" && rental.started_by !== ctx.user.id)
+        return err("Não pode alterar alugueres de outro utilizador.", 403);
+      const result = await db(ctx, "rpc/extend_open_rental_to_day", { method: "POST", body: JSON.stringify({
+        p_rental_id: parts[1], p_user_id: ctx.user.id,
+      }) });
+      return json(result);
+    }
+    if (parts[0] === "rentals" && parts[1] && parts[2] === "correct-period" && request.method === "PATCH") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const b = await body(request), period = String(b.rental_period || ""), reason = String(b.reason || "").trim();
+      if (!["hour", "day"].includes(period)) return err("Selecione um período válido.");
+      if (reason.length < 5) return err("Indique o motivo da correção (pelo menos 5 caracteres).");
+      const result = await db(ctx, "rpc/admin_correct_rental_period", { method: "POST", body: JSON.stringify({
+        p_rental_id: parts[1], p_period: period, p_user_id: ctx.user.id, p_reason: reason,
+      }) });
+      return json(result);
+    }
     if (route === "/rentals" && request.method === "POST") {
       const b = await body(request),
         customerContact = String(b.customer_contact || "").trim(),

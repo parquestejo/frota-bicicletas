@@ -35,7 +35,7 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
           finally { setPdfBusy(false); }
         }}>{pdfBusy ? "A preparar PDF…" : "Exportar relatório (PDF)"}</button>
         <button className="secondary" onClick={() => exportCSV("resumo-gestao-alugueres.csv", ["Indicador", "Valor"], [
-          ["Alugueres", report.rental_count], ["Itens alugados", report.item_count], ["Receita Multibanco", Number(report.revenue).toFixed(2)],
+          ["Alugueres", report.rental_count], ["Itens alugados", report.item_count], ["Receita Multibanco", Number(report.revenue).toFixed(2)], ["Valor comercial", Number(report.commercial_value || 0).toFixed(2)],
           ["Alugueres pagos", report.paid_rental_count], ["Alugueres gratuitos", report.free_rental_count],
           ["Histórico sem classificação de valor", report.unclassified_rental_count],
           ["Duração média", duration(report.average_duration_minutes)], ["Dia da semana com maior procura", report.busiest_weekday],
@@ -47,6 +47,7 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
       <div className="card"><span>Alugueres</span><b>{report.rental_count}</b></div>
       <div className="card"><span>Itens alugados</span><b>{report.item_count}</b></div>
       <div className="card"><span>Receita Multibanco</span><b>{money(report.revenue)}</b></div>
+      <div className="card"><span>Valor comercial</span><b>{money(report.commercial_value || 0)}</b></div>
       <div className="card"><span>Alugueres pagos</span><b>{report.paid_rental_count}</b></div>
       <div className="card"><span>Alugueres gratuitos</span><b>{report.free_rental_count}</b></div>
       <div className="card"><span>Duração média</span><b>{duration(report.average_duration_minutes)}</b></div>
