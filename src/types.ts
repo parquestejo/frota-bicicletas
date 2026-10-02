@@ -50,6 +50,8 @@ export interface RentalItem {
   return_kiosk_id?: string;
   anomaly: boolean;
   anomaly_description?: string;
+  deposit_retained?: number;
+  deposit_retention_reason?: string;
   bike?: Bike;
   return_kiosk?: Kiosk;
   returned_by_user?: User;
@@ -61,6 +63,15 @@ export interface Rental {
   customer_ref: string;
   customer_contact?: string;
   charged_amount: number;
+  expected_amount?: number;
+  discount_amount?: number;
+  rental_kind?: "normal" | "resident" | "institutional";
+  rental_period?: "hour" | "day";
+  resident_proof_type?: "AT" | "Dístico de residente" | "Subscrição 120 minutos";
+  oeiras_move_confirmed?: boolean;
+  institutional_entity?: "Parques Tejo" | "Município de Oeiras";
+  institutional_person?: string;
+  price_override_reason?: string;
   start_kiosk_id: string;
   status: "Em aberto" | "Concluído" | "Anulado";
   started_at: string;

@@ -505,6 +505,10 @@ th {
   grid-template-columns: 1fr auto;
   gap: 0.5rem;
 }
+
+.choice-row { display:flex; flex-wrap:wrap; gap:.75rem 1.25rem; }
+.choice-row label { display:flex; align-items:center; gap:.4rem; }
+.return-item { border:1px solid #ddd; border-radius:8px; padding:.8rem; margin:.65rem 0; }
 .discrepancy-toggle {
   margin-top: 0.8rem;
 }

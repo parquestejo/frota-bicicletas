@@ -193,6 +193,10 @@ export function Rentals({ user }: { user: User }) {
     [resolving, setResolving] = useState(""),
     [resolution, setResolution] = useState(""),
     [anomalies, setAnomalies] = useState<Record<string, string>>({}),
+    [returnItemIds, setReturnItemIds] = useState<string[]>([]),
+    [returnKioskId, setReturnKioskId] = useState(""),
+    [retainedDeposits, setRetainedDeposits] = useState<Record<string, string>>({}),
+    [retentionReasons, setRetentionReasons] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false);
   const { data, error } = useLoad<{
     rentals: Rental[];
@@ -213,20 +217,25 @@ export function Rentals({ user }: { user: User }) {
   async function confirmReturn() {
     if (!returning) return;
     const items = returning.items
-      .filter((i) => !i.returned_at)
+      .filter((i) => !i.returned_at && returnItemIds.includes(i.id))
       .map((i) => ({
         rental_item_id: i.id,
         anomaly: !!anomalies[i.id]?.trim(),
         anomaly_description: anomalies[i.id]?.trim() || "",
+        deposit_retained: Number(retainedDeposits[i.id] || 0),
+        deposit_retention_reason: retentionReasons[i.id]?.trim() || "",
       }));
+    if (!items.length) return notify("Selecione pelo menos um item a devolver.", "error");
+    if (items.some((item)=>item.deposit_retained>0 && item.deposit_retention_reason.length<5)) return notify("Indique o motivo de cada caução retida.", "error");
     setBusy(true);
     try {
       await post(`/rentals/${returning.id}/return`, {
-        return_kiosk_id: user.usual_kiosk_id || returning.start_kiosk_id,
+        return_kiosk_id: returnKioskId || user.usual_kiosk_id || returning.start_kiosk_id,
         items,
       });
       setReturning(null);
       setAnomalies({});
+      setReturnItemIds([]); setRetainedDeposits({}); setRetentionReasons({});
       setRefresh((x) => x + 1);
     } catch (e) {
       notify((e as Error).message, "error");
@@ -272,11 +281,13 @@ export function Rentals({ user }: { user: User }) {
               Cancelar
             </button>
           </div>
+          <label>Quiosque de devolução<select value={returnKioskId} onChange={(e)=>setReturnKioskId(e.target.value)}>{(data?.kiosks || []).map((k)=><option key={k.id} value={k.id}>{k.name}</option>)}</select></label>
           {returning.items
             .filter((i) => !i.returned_at)
             .map((i) => (
-              <label key={i.id}>
-                {assetLabel(i.bike)} {i.bike?.code}
+              <div className="return-item" key={i.id}>
+                <label><input type="checkbox" checked={returnItemIds.includes(i.id)} onChange={(e)=>setReturnItemIds((current)=>e.target.checked?[...current,i.id]:current.filter((id)=>id!==i.id))}/> <b>{assetLabel(i.bike)} {i.bike?.code}</b></label>
+                {returnItemIds.includes(i.id) && <>
                 <textarea
                   placeholder="Sem anomalia — deixe em branco. Se houver um problema, descreva-o aqui para abrir um ticket."
                   value={anomalies[i.id] || ""}
@@ -284,7 +295,9 @@ export function Rentals({ user }: { user: User }) {
                     setAnomalies({ ...anomalies, [i.id]: e.target.value })
                   }
                 />
-              </label>
+                {returning.rental_kind !== "institutional" && isBicycle(i.bike) && <div className="form-grid"><label>Caução retida (€)<input type="number" min="0" max="50" step="0.01" value={retainedDeposits[i.id] || "0"} onChange={(e)=>setRetainedDeposits({...retainedDeposits,[i.id]:e.target.value})}/></label>{Number(retainedDeposits[i.id] || 0)>0 && <label>Motivo da retenção<input value={retentionReasons[i.id] || ""} onChange={(e)=>setRetentionReasons({...retentionReasons,[i.id]:e.target.value})}/></label>}</div>}
+                </>}
+              </div>
             ))}
           <button
             className="primary full"
@@ -307,7 +320,8 @@ export function Rentals({ user }: { user: User }) {
                 <Badge>{r.status}</Badge>
               </div>
               <h3>{r.customer_ref}</h3>
-              <p><b>{rentalMoney(r.charged_amount)}</b> · Multibanco</p>
+              <p><b>{rentalMoney(r.charged_amount)}</b> · {r.rental_kind === "institutional" ? "Utilização institucional" : r.rental_kind === "resident" ? "Benefício de residente" : "Multibanco"}</p>
+              {r.expected_amount !== undefined && <small>Valor comercial: {rentalMoney(r.expected_amount)}</small>}
               {r.customer_contact && (
                 <p>
                   Contacto: {" "}
@@ -335,6 +349,7 @@ export function Rentals({ user }: { user: User }) {
                 className="primary full"
                 onClick={() => {
                   setAnomalies({});
+                  const pending=r.items.filter((i)=>!i.returned_at).map((i)=>i.id); setReturnItemIds(pending); setReturnKioskId(user.usual_kiosk_id || r.start_kiosk_id); setRetainedDeposits({}); setRetentionReasons({});
                   setReturning(r);
                 }}
               >

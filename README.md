@@ -1,6 +1,8 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 1.12.5
+## Versão 2.0.0
+
+Inclui preços automáticos por período e tipologia, benefício de residente, utilizações institucionais, cálculo do valor comercial, caução informativa e devoluções parciais em qualquer quiosque. As cauções só ficam registadas quando existe retenção.
 
 O administrador pode corrigir manualmente os totais de alugueres, bicicletas por tipologia, acessórios e valor Multibanco de um fecho submetido. A correção exige justificação, mantém os valores anteriores no histórico e não cria alugueres individuais inexistentes.
 
@@ -112,6 +114,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/013_rental_management_analytics.sql`
    - `supabase/migrations/014_pdf_reports_and_free_rentals.sql`
    - `supabase/migrations/015_admin_corrections_and_email_reports.sql`
+   - `supabase/migrations/016_pricing_and_institutional_use.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -125,7 +128,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Numa instalação existente, confirme que executou as migrações até `014` e execute depois apenas `supabase/migrations/015_admin_corrections_and_email_reports.sql`. Não volte a executar o `seed` nem as migrações anteriores.
+Numa instalação existente que já tenha a versão 1.12.5, execute apenas `supabase/migrations/016_pricing_and_institutional_use.sql`. Não volte a executar o `seed` nem as migrações anteriores.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 

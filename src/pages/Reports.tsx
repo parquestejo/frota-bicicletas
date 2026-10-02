@@ -21,7 +21,12 @@ export function Reports() {
     r.items.map((i) => [
       r.reference,
       r.customer_ref,
+      r.rental_kind === "institutional" ? "Institucional" : r.rental_kind === "resident" ? "Residente" : "Normal",
       Number(r.charged_amount || 0).toFixed(2),
+      Number(r.expected_amount || 0).toFixed(2),
+      Number(r.discount_amount || 0).toFixed(2),
+      r.institutional_entity || "",
+      r.institutional_person || "",
       i.bike?.code,
       assetLabel(i.bike),
       r.start_kiosk?.name,
@@ -32,6 +37,8 @@ export function Reports() {
       i.returned_by_user?.full_name || r.returned_by_user?.full_name,
       i.anomaly ? "Sim" : "Não",
       i.anomaly_description || "",
+      Number(i.deposit_retained || 0).toFixed(2),
+      i.deposit_retention_reason || "",
     ]),
   );
   const faultRows = faults.map((f) => [
@@ -94,7 +101,12 @@ export function Reports() {
                   [
                     "Referência",
                     "Cliente",
+                    "Tipo de utilização",
                     "Valor Multibanco (€)",
+                    "Valor comercial (€)",
+                    "Benefício/desconto (€)",
+                    "Entidade institucional",
+                    "Pessoa que levantou",
                     "Item",
                     "Tipo",
                     "Quiosque de saída",
@@ -105,6 +117,8 @@ export function Reports() {
                     "Devolvido por",
                     "Anomalia",
                     "Descrição da anomalia",
+                    "Caução retida (€)",
+                    "Motivo da retenção",
                   ],
                   rentalRows,
                 )
@@ -119,7 +133,9 @@ export function Reports() {
                 <tr>
                   <th>Referência</th>
                   <th>Cliente</th>
+                  <th>Utilização</th>
                   <th>Valor</th>
+                  <th>Valor comercial</th>
                   <th>Item</th>
                   <th>Tipo</th>
                   <th>Saída</th>
@@ -138,7 +154,9 @@ export function Reports() {
                         <b>{r.reference}</b>
                       </td>
                       <td>{r.customer_ref}</td>
+                      <td>{r.rental_kind === "institutional" ? `Institucional · ${r.institutional_entity}` : r.rental_kind === "resident" ? "Residente" : "Normal"}</td>
                       <td>{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(r.charged_amount || 0))}</td>
+                      <td>{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(r.expected_amount || 0))}</td>
                       <td>{i.bike?.code}</td>
                       <td>{assetLabel(i.bike)}</td>
                       <td>{r.start_kiosk?.name}</td>

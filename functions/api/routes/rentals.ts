@@ -66,6 +66,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const b = await body(request),
         customerContact = String(b.customer_contact || "").trim(),
         chargedAmount = Number(b.charged_amount);
+      const rentalKind = String(b.rental_kind || "normal"), rentalPeriod = String(b.rental_period || "hour");
       if (
         !b.customer_ref?.trim() ||
         !Array.isArray(b.bike_ids) ||
@@ -78,6 +79,12 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         return err("Indique um número de contacto válido.");
       if (b.charged_amount === "" || b.charged_amount === null || b.charged_amount === undefined || !Number.isFinite(chargedAmount) || chargedAmount < 0 || chargedAmount > 100000)
         return err("Indique o valor cobrado por Multibanco.");
+      if (!["normal","resident","institutional"].includes(rentalKind) || !["hour","day"].includes(rentalPeriod))
+        return err("Selecione um tipo e um período de utilização válidos.");
+      if (rentalKind === "resident" && (b.oeiras_move_confirmed !== true || !["AT","Dístico de residente","Subscrição 120 minutos"].includes(String(b.resident_proof_type))))
+        return err("Confirme as condições do benefício de residente.");
+      if (rentalKind === "institutional" && (!["Parques Tejo","Município de Oeiras"].includes(String(b.institutional_entity)) || !String(b.institutional_person || "").trim()))
+        return err("Indique a entidade e o nome de quem levantou o equipamento.");
       const rows = await db(ctx, "rpc/start_rental", {
         method: "POST",
         body: JSON.stringify({
@@ -87,6 +94,13 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           p_user_id: ctx.user.id,
           p_customer_contact: customerContact || null,
           p_charged_amount: chargedAmount,
+          p_rental_kind: rentalKind,
+          p_rental_period: rentalPeriod,
+          p_oeiras_move_confirmed: b.oeiras_move_confirmed === true,
+          p_resident_proof_type: b.resident_proof_type || null,
+          p_institutional_entity: b.institutional_entity || null,
+          p_institutional_person: String(b.institutional_person || "").trim() || null,
+          p_price_override_reason: String(b.price_override_reason || "").trim() || null,
         }),
       });
       return json(rows, 201);
@@ -245,11 +259,11 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const rental = (
         await db(
           ctx,
-          `rentals?id=eq.${parts[1]}&select=id,started_by,start_kiosk_id`,
+          `rentals?id=eq.${parts[1]}&select=id,started_by,start_kiosk_id,rental_kind`,
         )
       )[0];
       if (!rental) return err("Aluguer não encontrado.", 404);
-      if (ctx.user.role !== "admin" && rental.started_by !== ctx.user.id)
+      if (ctx.user.role !== "admin" && rental.started_by !== ctx.user.id && rental.rental_kind !== "institutional")
         return err("Não pode alterar alugueres de outro utilizador.", 403);
       const b = await body(request);
       if (!b.items?.length) return err("Não existem bicicletas por devolver.");
