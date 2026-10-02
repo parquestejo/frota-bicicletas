@@ -4,6 +4,7 @@ alter table rentals add column if not exists rental_kind text not null default '
   check (rental_kind in ('normal','resident','institutional'));
 alter table rentals add column if not exists rental_period text not null default 'hour'
   check (rental_period in ('hour','day'));
+alter table rentals alter column rental_period drop not null;
 alter table rentals add column if not exists expected_amount numeric(10,2) not null default 0 check(expected_amount>=0);
 alter table rentals add column if not exists discount_amount numeric(10,2) not null default 0 check(discount_amount>=0);
 alter table rentals add column if not exists oeiras_move_confirmed boolean not null default false;
@@ -37,7 +38,7 @@ declare
   r rentals; ref text; commercial numeric(10,2); payable numeric(10,2); bike_value numeric(10,2);
 begin
   if coalesce(array_length(p_bike_ids,1),0)=0 then raise exception 'no_bikes'; end if;
-  if p_rental_kind not in ('normal','resident','institutional') or p_rental_period not in ('hour','day') then raise exception 'invalid_rental_type'; end if;
+  if p_rental_kind not in ('normal','resident','institutional') or (p_rental_kind<>'institutional' and p_rental_period not in ('hour','day')) then raise exception 'invalid_rental_type'; end if;
   if p_rental_kind='resident' and (not coalesce(p_oeiras_move_confirmed,false) or p_resident_proof_type not in ('AT','Dístico de residente','Subscrição 120 minutos')) then raise exception 'invalid_resident_benefit'; end if;
   if p_rental_kind='institutional' and (p_institutional_entity not in ('Parques Tejo','Município de Oeiras') or length(trim(coalesce(p_institutional_person,'')))=0) then raise exception 'invalid_institutional_use'; end if;
   if p_charged_amount is null or p_charged_amount<0 or p_charged_amount>100000 then raise exception 'invalid_charged_amount'; end if;
@@ -58,14 +59,14 @@ begin
       when 'conventional' then case when p_rental_period='hour' then 2 else 6 end
       when 'child' then case when p_rental_period='hour' then 2 else 3 end end else 0 end),0)
   into commercial,bike_value from bikes where id=any(p_bike_ids);
+  if p_rental_kind='institutional' then commercial:=0; bike_value:=0; end if;
   payable:=case when p_rental_kind='institutional' then 0 when p_rental_kind='resident' then commercial-bike_value else commercial end;
-  if abs(p_charged_amount-payable)>0.001 and length(trim(coalesce(p_price_override_reason,'')))<5 then raise exception 'price_difference_reason_required'; end if;
 
   ref:='AL-'||to_char(clock_timestamp(),'YYYYMMDD-HH24MISS')||'-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,4));
   insert into rentals(reference,customer_ref,customer_contact,start_kiosk_id,started_by,charged_amount,charged_amount_recorded,
     rental_kind,rental_period,expected_amount,discount_amount,oeiras_move_confirmed,resident_proof_type,institutional_entity,institutional_person,price_override_reason)
-  values(ref,left(trim(p_customer_ref),200),nullif(left(trim(coalesce(p_customer_contact,'')),50),''),p_start_kiosk_id,p_user_id,p_charged_amount,true,
-    p_rental_kind,p_rental_period,commercial,commercial-payable,case when p_rental_kind='resident' then p_oeiras_move_confirmed else false end,
+  values(ref,left(trim(p_customer_ref),200),nullif(left(trim(coalesce(p_customer_contact,'')),50),''),p_start_kiosk_id,p_user_id,payable,true,
+    p_rental_kind,case when p_rental_kind='institutional' then null else p_rental_period end,commercial,commercial-payable,case when p_rental_kind='resident' then p_oeiras_move_confirmed else false end,
     case when p_rental_kind='resident' then p_resident_proof_type else null end,case when p_rental_kind='institutional' then p_institutional_entity else null end,
     case when p_rental_kind='institutional' then left(trim(p_institutional_person),200) else null end,nullif(trim(coalesce(p_price_override_reason,'')),'')) returning * into r;
   insert into rental_items(rental_id,bike_id) select r.id,unnest(p_bike_ids);
@@ -112,7 +113,20 @@ begin
     end if;
   end loop;
   select count(*) into remaining from rental_items where rental_id=p_rental_id and returned_at is null;
-  if remaining=0 then update rentals set status='Concluído',returned_at=now(),returned_by=p_user_id,customer_contact=null where id=p_rental_id; end if;
+  if remaining=0 then
+    if r.rental_kind='institutional' then
+      select coalesce(sum(case b.asset_type
+        when 'electric' then case when now()-r.started_at<=interval '1 hour' then 4 else 10 end
+        when 'conventional' then case when now()-r.started_at<=interval '1 hour' then 2 else 6 end
+        when 'child' then case when now()-r.started_at<=interval '1 hour' then 2 else 3 end
+        when 'stroller' then case when now()-r.started_at<=interval '1 hour' then 2 else 3 end
+        when 'helmet' then 1 else 0 end),0) into retained
+      from rental_items all_items join bikes b on b.id=all_items.bike_id where all_items.rental_id=p_rental_id;
+      update rentals set status='Concluído',returned_at=now(),returned_by=p_user_id,customer_contact=null,expected_amount=retained,discount_amount=retained where id=p_rental_id;
+    else
+      update rentals set status='Concluído',returned_at=now(),returned_by=p_user_id,customer_contact=null where id=p_rental_id;
+    end if;
+  end if;
   insert into audit_log(action,user_id,entity,entity_id,new_value) values('registar devolução',p_user_id,'aluguer',p_rental_id::text,p_items);
   return jsonb_build_object('remaining',remaining);
 end; $$;

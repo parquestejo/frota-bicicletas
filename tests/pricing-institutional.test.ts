@@ -9,7 +9,7 @@ describe("preços e utilizações institucionais", () => {
   it("calcula preços no servidor e preserva o valor comercial", () => {
     expect(migration).toContain("expected_amount");
     expect(migration).toContain("when 'electric' then case when p_rental_period='hour' then 4 else 10 end");
-    expect(migration).toContain("price_difference_reason_required");
+    expect(migration).toContain("p_rental_kind='institutional' then commercial:=0");
   });
   it("valida o benefício de residente e a utilização institucional", () => {
     expect(api).toContain("Confirme as condições do benefício de residente");
@@ -20,5 +20,6 @@ describe("preços e utilizações institucionais", () => {
     expect(migration).toContain("institutional_deposit_not_allowed");
     expect(migration).toContain("deposit_retention_reason");
     expect(migration).toContain("select count(*) into remaining");
+    expect(migration).toContain("expected_amount=retained");
   });
 });

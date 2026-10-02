@@ -26,7 +26,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204, headers: securityHeaders });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "2.0.0",
+        version: "2.0.1",
         routing: "array-safe",
         database_errors: "detailed",
       });

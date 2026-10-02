@@ -66,7 +66,7 @@ export interface Rental {
   expected_amount?: number;
   discount_amount?: number;
   rental_kind?: "normal" | "resident" | "institutional";
-  rental_period?: "hour" | "day";
+  rental_period?: "hour" | "day" | null;
   resident_proof_type?: "AT" | "Dístico de residente" | "Subscrição 120 minutos";
   oeiras_move_confirmed?: boolean;
   institutional_entity?: "Parques Tejo" | "Município de Oeiras";

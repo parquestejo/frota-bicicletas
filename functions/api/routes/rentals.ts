@@ -79,7 +79,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         return err("Indique um número de contacto válido.");
       if (b.charged_amount === "" || b.charged_amount === null || b.charged_amount === undefined || !Number.isFinite(chargedAmount) || chargedAmount < 0 || chargedAmount > 100000)
         return err("Indique o valor cobrado por Multibanco.");
-      if (!["normal","resident","institutional"].includes(rentalKind) || !["hour","day"].includes(rentalPeriod))
+      if (!["normal","resident","institutional"].includes(rentalKind) || (rentalKind !== "institutional" && !["hour","day"].includes(rentalPeriod)))
         return err("Selecione um tipo e um período de utilização válidos.");
       if (rentalKind === "resident" && (b.oeiras_move_confirmed !== true || !["AT","Dístico de residente","Subscrição 120 minutos"].includes(String(b.resident_proof_type))))
         return err("Confirme as condições do benefício de residente.");
@@ -95,7 +95,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           p_customer_contact: customerContact || null,
           p_charged_amount: chargedAmount,
           p_rental_kind: rentalKind,
-          p_rental_period: rentalPeriod,
+          p_rental_period: rentalKind === "institutional" ? null : rentalPeriod,
           p_oeiras_move_confirmed: b.oeiras_move_confirmed === true,
           p_resident_proof_type: b.resident_proof_type || null,
           p_institutional_entity: b.institutional_entity || null,

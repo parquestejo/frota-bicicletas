@@ -22,13 +22,11 @@ export function NewRental({ user }: { user: User }) {
     [message, setMessage] = useState(""),
     [customer, setCustomer] = useState(""),
     [customerContact, setCustomerContact] = useState(""),
-    [chargedAmount, setChargedAmount] = useState("0"),
     [kind, setKind] = useState<RentalKind>("normal"),
     [period, setPeriod] = useState<RentalPeriod>("hour"),
     [oeirasMove, setOeirasMove] = useState(false),
     [residentProof, setResidentProof] = useState(""),
     [institutionalEntity, setInstitutionalEntity] = useState(""),
-    [priceReason, setPriceReason] = useState(""),
     [kiosk, setKiosk] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
     [busy, setBusy] = useState(false);
@@ -63,14 +61,6 @@ export function NewRental({ user }: { user: User }) {
       setMessage("Selecione a entidade responsável pela utilização institucional.");
       return;
     }
-    if (chargedAmount === "" || Number(chargedAmount) < 0) {
-      setMessage("Indique o valor cobrado por Multibanco.");
-      return;
-    }
-    if (Math.abs(Number(chargedAmount) - payableAmount) > 0.001 && priceReason.trim().length < 5) {
-      setMessage("Explique a diferença entre o valor calculado e o valor cobrado.");
-      return;
-    }
     setBusy(true);
     try {
       await post("/rentals", {
@@ -78,14 +68,13 @@ export function NewRental({ user }: { user: User }) {
         customer_contact: customerContact,
         start_kiosk_id: kiosk,
         bike_ids: selected,
-        charged_amount: Number(chargedAmount),
+        charged_amount: payableAmount,
         rental_kind: kind,
-        rental_period: period,
+        rental_period: kind === "institutional" ? null : period,
         oeiras_move_confirmed: kind === "resident" ? oeirasMove : false,
         resident_proof_type: kind === "resident" ? residentProof : null,
         institutional_entity: kind === "institutional" ? institutionalEntity : null,
         institutional_person: kind === "institutional" ? customer.trim() : null,
-        price_override_reason: Math.abs(Number(chargedAmount) - payableAmount) > 0.001 ? priceReason.trim() : null,
       });
       navigate("/alugueres");
     } catch (e) {
@@ -103,8 +92,6 @@ export function NewRental({ user }: { user: User }) {
     ? chosen.filter((item) => !bicycles.has(item.asset_type)).reduce((sum, item) => sum + prices[period][item.asset_type], 0)
     : commercialAmount;
   const depositAmount = kind === "institutional" ? 0 : chosen.filter((item) => bicycles.has(item.asset_type)).length * 50;
-
-  useEffect(() => { setChargedAmount(payableAmount.toFixed(2)); }, [payableAmount]);
 
   return (
     <>
@@ -144,9 +131,9 @@ export function NewRental({ user }: { user: User }) {
               <label><input type="radio" checked={kind === "institutional"} onChange={()=>setKind("institutional")}/> Atividade institucional</label>
             </div>
           </fieldset>
-          <label>Período<select value={period} onChange={(e)=>setPeriod(e.target.value as RentalPeriod)}><option value="hour">1 hora</option><option value="day">1 dia</option></select></label>
-          {kind === "resident" && <fieldset><legend>Condições do benefício</legend>
-            <label><input type="checkbox" checked={oeirasMove} onChange={(e)=>setOeirasMove(e.target.checked)}/> App Oeiras Move instalada</label>
+          {kind !== "institutional" && <label>Período<select value={period} onChange={(e)=>setPeriod(e.target.value as RentalPeriod)}><option value="hour">1 hora</option><option value="day">1 dia</option></select></label>}
+          {kind === "resident" && <fieldset className="resident-benefit"><legend>Condições do benefício</legend>
+            <label className="check-line"><input type="checkbox" checked={oeirasMove} onChange={(e)=>setOeirasMove(e.target.checked)}/> <span>App Oeiras Move instalada</span></label>
             <label>Comprovativo de residência<select value={residentProof} onChange={(e)=>setResidentProof(e.target.value)}><option value="">Selecionar…</option><option>AT</option><option>Dístico de residente</option><option>Subscrição 120 minutos</option></select></label>
           </fieldset>}
           {kind === "institutional" && <label>Entidade<select value={institutionalEntity} onChange={(e)=>setInstitutionalEntity(e.target.value)}><option value="">Selecionar…</option><option>Parques Tejo</option><option>Município de Oeiras</option></select></label>}
@@ -170,13 +157,7 @@ export function NewRental({ user }: { user: User }) {
               ))}
             </select>
           </label>
-          <label>
-            Valor cobrado (€)
-            <input type="number" inputMode="decimal" min="0" max="100000" step="0.01"
-              value={chargedAmount} onChange={(e) => setChargedAmount(e.target.value)} required />
-          </label>
-          <div className="notice"><b>Valor comercial: {money(commercialAmount)}</b><br/>Valor a cobrar: {money(payableAmount)}<br/>{kind === "institutional" ? "Caução dispensada" : `Caução a solicitar: ${money(depositAmount)} (${money(50)} por bicicleta)`}</div>
-          {Math.abs(Number(chargedAmount || 0) - payableAmount) > 0.001 && <label>Motivo da diferença<input value={priceReason} onChange={(e)=>setPriceReason(e.target.value)} placeholder="Justificação obrigatória"/></label>}
+          <div className="notice"><b>{kind === "institutional" ? "Utilização institucional — sem cobrança" : `Total a cobrar: ${money(payableAmount)}`}</b><br/>{kind === "institutional" ? "Caução dispensada" : `Caução a solicitar: ${money(depositAmount)} (${money(50)} por bicicleta)`}</div>
           <fieldset aria-invalid={!!message && !selected.length}>
             <legend>Bicicletas e acessórios disponíveis</legend>
             <div className="bike-picker">

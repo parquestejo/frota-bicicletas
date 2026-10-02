@@ -12,8 +12,9 @@ describe("informação de gestão dos alugueres", () => {
     expect(migration).toContain("charged_amount numeric(10,2)");
     expect(migration).toContain("p_charged_amount numeric");
     expect(apiSource).toContain("p_charged_amount: chargedAmount");
-    expect(newRental).toContain("Valor cobrado (€)");
-    expect(newRental).toContain('min="0"');
+    expect(newRental).toContain("Total a cobrar:");
+    expect(newRental).toContain("charged_amount: payableAmount");
+    expect(newRental).not.toContain("setChargedAmount");
   });
   it("distingue automaticamente alugueres gratuitos sem aumentar o formulário", () => {
     expect(paymentMigration).toContain("charged_amount_recorded boolean");

@@ -1,8 +1,10 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.0.0
+## Versão 2.0.1
 
 Inclui preços automáticos por período e tipologia, benefício de residente, utilizações institucionais, cálculo do valor comercial, caução informativa e devoluções parciais em qualquer quiosque. As cauções só ficam registadas quando existe retenção.
+
+O funcionário não introduz valores: o sistema apresenta apenas o total a cobrar e a caução. O valor comercial é reservado aos relatórios. Nas utilizações institucionais não se escolhe período e o valor comercial é apurado internamente após a devolução integral.
 
 O administrador pode corrigir manualmente os totais de alugueres, bicicletas por tipologia, acessórios e valor Multibanco de um fecho submetido. A correção exige justificação, mantém os valores anteriores no histórico e não cria alugueres individuais inexistentes.
 
