@@ -59,7 +59,9 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
         {report.busiest_days.map((day) => <tr key={day.local_date}><td>{new Intl.DateTimeFormat("pt-PT").format(new Date(`${day.local_date}T12:00:00`))}</td><td>{day.rental_count}</td><td>{day.item_count}</td><td>{money(day.revenue)}</td></tr>)}
       </tbody></table></div></section>
       <section className="card"><h3>Procura por dia da semana</h3>{report.weekdays.map((day) => <div className="row" key={day.weekday_number}><span>{day.weekday}</span><b>{day.rental_count}</b></div>)}</section>
-      <section className="card"><h3>Por quiosque</h3>{report.kiosks.map((kiosk) => <div className="row" key={kiosk.id}><span>{kiosk.name}<small>{money(kiosk.revenue)}</small></span><b>{kiosk.rental_count}</b></div>)}</section>
+      <section className="card"><h3>Por quiosque</h3><div className="table-wrap"><table><thead><tr><th>Quiosque</th><th>Alugueres</th><th>Bicicletas</th><th>Acessórios</th><th>Total de itens</th><th>Valor</th></tr></thead><tbody>
+        {report.kiosks.map((kiosk) => <tr key={kiosk.id}><td>{kiosk.name}</td><td>{kiosk.rental_count}</td><td>{kiosk.bicycle_count}</td><td>{kiosk.accessory_count}</td><td>{kiosk.item_count}</td><td>{money(kiosk.revenue)}</td></tr>)}
+      </tbody></table></div></section>
       <section className="card"><h3>Itens mais procurados</h3>{report.asset_types.length ? report.asset_types.map((item) => <div className="row" key={item.asset_type}><span>{assetNames[item.asset_type] || item.asset_type}</span><b>{item.item_count}</b></div>) : <p className="muted">Sem alugueres no período.</p>}</section>
     </div>
     <section className="card stockout-report">

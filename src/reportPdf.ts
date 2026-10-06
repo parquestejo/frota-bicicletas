@@ -15,7 +15,7 @@ export type RentalAnalyticsReport = {
   unclassified_rental_count: number;
   busiest_days: { local_date: string; rental_count: number; item_count: number; revenue: number }[];
   weekdays: { weekday_number: number; weekday: string; rental_count: number }[];
-  kiosks: { id: string; name: string; rental_count: number; revenue: number }[];
+  kiosks: { id: string; name: string; rental_count: number; bicycle_count: number; accessory_count: number; item_count: number; revenue: number }[];
   asset_types: { asset_type: string; item_count: number }[];
   stockouts: { id: string; kiosk_name: string; started_at: string; ended_at?: string; rented_count: number; out_of_service_count: number; cause: string; duration_minutes: number }[];
 };
@@ -132,10 +132,10 @@ export function createRentalAnalyticsPdf(report: RentalAnalyticsReport, from: st
   doc.setTextColor(...dark).setFont("helvetica", "bold").setFontSize(12).text("Distribuição operacional", 14, 127);
   autoTable(doc, {
     startY: 132,
-    head: [["Área", "Alugueres/itens", "Receita"]],
+    head: [["Área", "Alugueres", "Bicicletas", "Acessórios", "Total itens", "Receita"]],
     body: [
-      ...report.kiosks.map((item) => [item.name, item.rental_count, money(item.revenue)]),
-      ...report.asset_types.map((item) => [assetNames[item.asset_type] || item.asset_type, item.item_count, "—"]),
+      ...report.kiosks.map((item) => [item.name, item.rental_count, item.bicycle_count, item.accessory_count, item.item_count, money(item.revenue)]),
+      ...report.asset_types.map((item) => [assetNames[item.asset_type] || item.asset_type, "—", "—", "—", item.item_count, "—"]),
     ],
     theme: "striped", margin: { left: 14, right: 14, top: 28, bottom: 18 },
     headStyles: { fillColor: dark, textColor: 255 }, alternateRowStyles: { fillColor: light },

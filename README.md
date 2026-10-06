@@ -1,6 +1,9 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.0.2
+## Versão 2.0.4
+
+- A tabela por quiosque passa a apresentar alugueres, bicicletas, acessórios, total de itens e valor.
+- A visão global é complementada pelo detalhe existente por tipologia de equipamento.
 
 Inclui preços automáticos por período e tipologia, benefício de residente, utilizações institucionais, cálculo do valor comercial, caução informativa e devoluções parciais em qualquer quiosque. As cauções só ficam registadas quando existe retenção.
 
@@ -117,7 +120,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/014_pdf_reports_and_free_rentals.sql`
    - `supabase/migrations/015_admin_corrections_and_email_reports.sql`
    - `supabase/migrations/016_pricing_and_institutional_use.sql`
-   - `supabase/migrations/017_rental_period_corrections.sql`
+   - `supabase/migrations/019_kiosk_item_breakdown.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -131,7 +134,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Numa instalação existente que já tenha a versão 2.0.1, execute apenas `supabase/migrations/017_rental_period_corrections.sql`. Não volte a executar o `seed` nem as migrações anteriores. A migração permite prolongar e corrigir o período dos alugueres e assume o valor registado nos alugueres anteriores à versão 2.0 como valor comercial nos relatórios.
+Numa instalação existente que já tenha a versão 2.0.3, execute apenas `supabase/migrations/019_kiosk_item_breakdown.sql`. Não volte a executar o `seed` nem as migrações anteriores. A migração acrescenta aos relatórios a decomposição por quiosque entre bicicletas, acessórios e total de itens.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 

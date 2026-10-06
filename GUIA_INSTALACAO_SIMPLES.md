@@ -41,7 +41,7 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `017_rental_period_corrections.sql`.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `019_kiosk_item_breakdown.sql`.
 6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
