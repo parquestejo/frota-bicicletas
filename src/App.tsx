@@ -25,6 +25,7 @@ import { DailyClosures } from "./DailyClosures";
 import { FeedbackProvider } from "./Feedback";
 import { NotificationCenter } from "./Notifications";
 import { EmailSettings } from "./EmailSettings";
+import { Catalog } from "./Catalog";
 
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [username, setUsername] = useState("");
@@ -202,6 +203,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
       ["/relatorios", "Relatórios"],
       ["/atividade", "Atividade"],
       ["/utilizadores", "Utilizadores"],
+      ["/catalogo", "Catálogo e preços"],
       ["/emails", "Emails automáticos"],
     );
   return (
@@ -296,6 +298,10 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
           <Route
             path="/atividade"
             element={user.role === "admin" ? <Activity /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/catalogo"
+            element={user.role === "admin" ? <Catalog /> : <Navigate to="/" />}
           />
           <Route
             path="/utilizadores"

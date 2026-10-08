@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, post, patch } from "../api";
-import type { AssetType, Bike, BikeStatus, Fault, Kiosk, Rental, RentalDiscrepancy, RentalItem, User } from "../types";
+import type { AssetType, Bike, BikeStatus, EquipmentType, Fault, Kiosk, Rental, RentalDiscrepancy, RentalItem, User } from "../types";
 import { useFeedback } from "../Feedback";
 import { assetLabel, assetOptions, assetTypeOf, Badge, DateRange, daysSince, dayKey, exportCSV, fmt, inDateRange, isBicycle, operationalStatuses, statuses, useLoad } from "./shared";
 function BikeAdminControls({
@@ -9,11 +9,13 @@ function BikeAdminControls({
   kiosks,
   canEditIdentity,
   onSaved,
+  equipmentTypes,
 }: {
   bike: Bike;
   kiosks: Kiosk[];
   canEditIdentity: boolean;
   onSaved: () => void;
+  equipmentTypes: EquipmentType[];
 }) {
   const { notify } = useFeedback();
   const [status, setStatus] = useState<BikeStatus>(bike.status),
@@ -84,14 +86,14 @@ function BikeAdminControls({
                 value={assetType}
                 onChange={(e) => {
                   const next = e.target.value as AssetType;
-                  const prefix = assetOptions.find((x) => x.value === next)?.prefix || "";
+                  const prefix = equipmentTypes.find((x) => x.code === next)?.prefix || "";
                   const number = code.match(/\d+$/)?.[0] || "001";
                   setAssetType(next);
                   setCode(prefix + number);
                 }}
               >
-                {assetOptions.map((x) => (
-                  <option key={x.value} value={x.value}>{x.label}</option>
+                {equipmentTypes.map((x) => (
+                  <option key={x.code} value={x.code}>{x.name}</option>
                 ))}
               </select>
             </label>
@@ -149,10 +151,12 @@ function BikeCreateForm({
   kiosks,
   onCreated,
   onCancel,
+  equipmentTypes,
 }: {
   kiosks: Kiosk[];
   onCreated: () => void;
   onCancel: () => void;
+  equipmentTypes: EquipmentType[];
 }) {
   const { notify } = useFeedback();
   const [assetType, setAssetType] = useState<AssetType>("conventional"),
@@ -170,9 +174,9 @@ function BikeCreateForm({
             value={assetType}
             onChange={(e) => setAssetType(e.target.value as AssetType)}
           >
-            {assetOptions.map((x) => (
-              <option key={x.value} value={x.value}>
-                {x.prefix} — {x.label}
+            {equipmentTypes.map((x) => (
+              <option key={x.code} value={x.code}>
+                {x.prefix} — {x.name}
               </option>
             ))}
           </select>
@@ -189,14 +193,14 @@ function BikeCreateForm({
           />
           <small>
             O código será{" "}
-            {assetOptions.find((x) => x.value === assetType)?.prefix}
+            {equipmentTypes.find((x) => x.code === assetType)?.prefix}
             {number.padStart(3, "0") || "001"}.
           </small>
         </label>
         <label>
           Modelo
           <input
-            placeholder={assetOptions.find((x) => x.value === assetType)?.model}
+            placeholder={equipmentTypes.find((x) => x.code === assetType)?.default_model}
             value={model}
             onChange={(e) => setModel(e.target.value)}
           />
@@ -476,7 +480,7 @@ export function Fleet({ user }: { user: User }) {
     [type, setType] = useState(""),
     [showAdd, setShowAdd] = useState(false),
     [refresh, setRefresh] = useState(0);
-  const { data, error } = useLoad<{ bikes: Bike[]; kiosks: Kiosk[] }>(
+  const { data, error } = useLoad<{ bikes: Bike[]; kiosks: Kiosk[]; equipment_types: EquipmentType[] }>(
     "/bikes",
     refresh,
   );
@@ -508,6 +512,7 @@ export function Fleet({ user }: { user: User }) {
       {showAdd && (
         <BikeCreateForm
           kiosks={data?.kiosks || []}
+          equipmentTypes={data?.equipment_types || []}
           onCreated={() => {
             setShowAdd(false);
             setRefresh((x) => x + 1);
@@ -529,9 +534,9 @@ export function Fleet({ user }: { user: User }) {
         />
         <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="">Todos os tipos</option>
-          {assetOptions.map((x) => (
-            <option key={x.value} value={x.value}>
-              {x.label}
+          {(data?.equipment_types || []).map((x) => (
+            <option key={x.code} value={x.code}>
+              {x.name}
             </option>
           ))}
         </select>
@@ -586,6 +591,7 @@ export function Fleet({ user }: { user: User }) {
                       bike={b}
                       kiosks={data?.kiosks || []}
                       canEditIdentity={user.role === "admin"}
+                      equipmentTypes={data?.equipment_types || []}
                       onSaved={() => setRefresh((x) => x + 1)}
                     />
                   </td>

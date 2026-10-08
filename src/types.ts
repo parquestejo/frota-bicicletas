@@ -5,13 +5,9 @@ export type BikeStatus =
   | "Avariada"
   | "Em manutenção"
   | "Indisponível";
-export type AssetType =
-  | "electric"
-  | "conventional"
-  | "child"
-  | "helmet"
-  | "lock"
-  | "stroller";
+export type AssetType = string;
+export interface EquipmentType { code:string; name:string; category:"bicycle"|"accessory"; prefix:string; default_model:string; deposit_amount:number; resident_free:boolean; included:boolean; active:boolean; }
+export interface EquipmentPrice { id:string; asset_type:string; period:"hour"|"day"; amount:number; effective_from:string; created_at:string; }
 export interface User {
   id: string;
   full_name: string;
@@ -67,6 +63,7 @@ export interface Rental {
   discount_amount?: number;
   rental_kind?: "normal" | "resident" | "institutional";
   rental_period?: "hour" | "day" | null;
+  rental_hours?: number | null;
   resident_proof_type?: "AT" | "Dístico de residente" | "Subscrição 120 minutos";
   oeiras_move_confirmed?: boolean;
   institutional_entity?: "Parques Tejo" | "Município de Oeiras";
@@ -89,6 +86,7 @@ export interface RentalPeriodUpdate {
   expected_amount: number;
   tariff_amount?: number;
   rental_period?: "hour" | "day";
+  rental_hours?: number | null;
 }
 export interface MaintenanceIntervention {
   id: string;

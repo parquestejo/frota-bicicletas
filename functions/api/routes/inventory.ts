@@ -4,6 +4,29 @@ import {
 } from "../_shared";
 
 export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
+    if (route === "/catalog" && request.method === "GET") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const [types, history] = await Promise.all([db(ctx,"equipment_types?select=*&order=name"),db(ctx,"equipment_prices?select=*&order=effective_from.desc,created_at.desc")]);
+      const now=Date.now(),eligible=history.filter((p:any)=>new Date(p.effective_from).getTime()<=now);
+      const prices=eligible.filter((p:any,i:number,list:any[])=>list.findIndex((x:any)=>x.asset_type===p.asset_type&&x.period===p.period)===i);
+      return json({types,prices,history});
+    }
+    if (route === "/catalog/types" && request.method === "POST") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const b=await body(request), code=String(b.code||"").trim().toLowerCase(), prefix=String(b.prefix||"").trim().toUpperCase(), name=String(b.name||"").trim();
+      if(!/^[a-z][a-z0-9_]{1,29}$/.test(code)||!/^[A-Z]{1,6}$/.test(prefix)||name.length<2||!["bicycle","accessory"].includes(String(b.category))) return err("Preencha corretamente a nova tipologia.");
+      const rows=await db(ctx,"equipment_types",{method:"POST",body:JSON.stringify({code,name,category:b.category,prefix,default_model:String(b.default_model||name).trim(),deposit_amount:Number(b.deposit_amount||0),resident_free:!!b.resident_free,included:!!b.included})});
+      await audit(ctx,"criar","tipologia",code,null,rows[0]); return json(rows[0],201);
+    }
+    if (route === "/catalog/prices" && request.method === "POST") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const b=await body(request), hour=Number(b.hour), day=Number(b.day), effective=String(b.effective_from||"");
+      if(!b.asset_type||!Number.isFinite(hour)||hour<0||!Number.isFinite(day)||day<0||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(effective)) return err("Indique preços e uma data de entrada em vigor válidos.");
+      const type=(await db(ctx,`equipment_types?code=eq.${q(String(b.asset_type))}&active=eq.true&select=code`))[0]; if(!type)return err("A tipologia selecionada não está ativa.");
+      const effectiveFrom=`${effective}T00:00:00+00:00`;
+      const rows=await db(ctx,"equipment_prices",{method:"POST",body:JSON.stringify([{asset_type:b.asset_type,period:"hour",amount:hour,effective_from:effectiveFrom,created_by:ctx.user.id},{asset_type:b.asset_type,period:"day",amount:day,effective_from:effectiveFrom,created_by:ctx.user.id}])});
+      await audit(ctx,"publicar","tarifário",String(b.asset_type),null,{hour,day,effective_from:effective}); return json(rows,201);
+    }
     if (route === "/dashboard" && request.method === "GET") {
       const own =
         ctx.user.role === "admin" ? "" : `&started_by=eq.${q(ctx.user.id)}`;
@@ -140,8 +163,8 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       const bikeQuery=ctx.user.role==='funcionario'
         ? `bikes?active=eq.true&kiosk_id=in.(${kioskIds.join(',')})&select=id,code,asset_type,model,kiosk_id,status,active,created_at,updated_at,kiosk:kiosks(id,name,allows_rentals)&order=code`
         : "bikes?select=*,kiosk:kiosks(*)&order=code";
-      const bikes=ctx.user.role==='funcionario'&&!kioskIds.length?[]:await db(ctx,bikeQuery);
-      return json({ bikes, kiosks });
+      const [bikes,equipmentTypes]=await Promise.all([ctx.user.role==='funcionario'&&!kioskIds.length?Promise.resolve([]):db(ctx,bikeQuery),db(ctx,"equipment_types?active=eq.true&select=*&order=name")]);
+      return json({ bikes, kiosks, equipment_types: equipmentTypes });
     }
     if (route === "/bikes/report" && request.method === "GET") {
       if (!allow(ctx, "admin"))
@@ -178,7 +201,8 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
     if (route === "/bikes" && request.method === "POST") {
       if (!allow(ctx, "admin"))
         return err("Apenas administradores podem criar itens de inventário.", 403);
-      const b = await body(request),types:any={electric:{prefix:'E',model:'Bicicleta elétrica'},conventional:{prefix:'C',model:'Bicicleta convencional'},child:{prefix:'I',model:'Bicicleta infantil'},helmet:{prefix:'CAP',model:'Capacete'},lock:{prefix:'CAD',model:'Cadeado'},stroller:{prefix:'CAR',model:'Carrinho de bebé'}},assetType=types[b.asset_type]?b.asset_type:(b.type==='E'?'electric':'conventional'),definition=types[assetType],number=String(b.number||b.code||'').replace(/^[A-Z]+/i,'');
+      const b = await body(request),assetType=String(b.asset_type||""),definition=(await db(ctx,`equipment_types?code=eq.${q(assetType)}&active=eq.true&select=*`))[0],number=String(b.number||b.code||'').replace(/^[A-Z]+/i,'');
+      if (!definition) return err("A tipologia selecionada não está ativa.");
       if (!/^\d{1,6}$/.test(number))
         return err("Indique um número válido para a bicicleta.");
       const code = definition.prefix + number.padStart(3, "0");
@@ -186,7 +210,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         method: "POST",
         body: JSON.stringify({
           code,
-          model:b.model||definition.model,
+          model:b.model||definition.default_model,
           asset_type:assetType,
           kiosk_id: b.kiosk_id,
           status: "Disponível",
@@ -235,8 +259,8 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         assetType = admin && b.asset_type !== undefined ? String(b.asset_type) : old.asset_type,
         model = admin && b.model !== undefined ? String(b.model).trim() : old.model,
         active = admin && b.active !== undefined ? !!b.active : old.active,
-        prefixes:any={electric:'E',conventional:'C',child:'I',helmet:'CAP',lock:'CAD',stroller:'CAR'};
-      if (!prefixes[assetType] || !new RegExp(`^${prefixes[assetType]}\\d{3,6}$`).test(code))
+        definition=(await db(ctx,`equipment_types?code=eq.${q(assetType)}&select=prefix`))[0];
+      if (!definition || !new RegExp(`^${definition.prefix}\\d{3,6}$`).test(code))
         return err("O código não corresponde à tipologia selecionada.");
       if (!model) return err("Indique o modelo ou a designação do item.");
       const rows = await db(ctx, "rpc/update_inventory_item", {

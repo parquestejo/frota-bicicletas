@@ -1,6 +1,17 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.0.4
+## Versão 2.2.0
+
+- Pagamento à hora com escolha livre do número de horas.
+- O preço horário é multiplicado pelo número de horas escolhido, tendo o preço diário de cada equipamento como valor máximo.
+- Prolongamento de alugueres abertos para mais horas ou para 1 dia, com cálculo do adicional.
+- Correção administrativa da modalidade e do número de horas.
+
+- Novo menu administrativo **Catálogo e preços**.
+- Gestão de tipologias, prefixos, categorias, cauções e benefício de residente.
+- Publicação de preços por hora e por dia com data de entrada em vigor e histórico.
+- O servidor recalcula sempre o valor aplicável e os alugueres anteriores mantêm os valores guardados.
+- Novas tipologias ficam disponíveis na criação de itens do inventário.
 
 - A tabela por quiosque passa a apresentar alugueres, bicicletas, acessórios, total de itens e valor.
 - A visão global é complementada pelo detalhe existente por tipologia de equipamento.
@@ -120,7 +131,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/014_pdf_reports_and_free_rentals.sql`
    - `supabase/migrations/015_admin_corrections_and_email_reports.sql`
    - `supabase/migrations/016_pricing_and_institutional_use.sql`
-   - `supabase/migrations/019_kiosk_item_breakdown.sql`
+   - `supabase/migrations/021_hourly_duration.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -134,7 +145,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Numa instalação existente que já tenha a versão 2.0.3, execute apenas `supabase/migrations/019_kiosk_item_breakdown.sql`. Não volte a executar o `seed` nem as migrações anteriores. A migração acrescenta aos relatórios a decomposição por quiosque entre bicicletas, acessórios e total de itens.
+Numa instalação existente que já tenha a versão 2.1.0, execute apenas `supabase/migrations/021_hourly_duration.sql`. Não volte a executar o `seed` nem as migrações anteriores.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 

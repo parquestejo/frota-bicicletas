@@ -12,7 +12,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const discrepancyOwner =
         ctx.user.role === "admin" ? "" : `&created_by=eq.${q(ctx.user.id)}`;
       const rentalSelect = "select=*,start_kiosk:kiosks(*),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
-      const [openRentals, completedRentals, annulledRentals, bikes, correctionBikes, kiosks, discrepancies, summary] = await Promise.all([
+      const [openRentals, completedRentals, annulledRentals, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices] = await Promise.all([
         db(
           ctx,
           `rentals?${rentalSelect}&status=eq.Em%20aberto${owner}&order=started_at.desc`,
@@ -39,9 +39,12 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           method: "POST",
           body: JSON.stringify({ p_user_id: ctx.user.role === "admin" ? null : ctx.user.id }),
         }),
+        db(ctx, "equipment_types?active=eq.true&select=*&order=name"),
+        db(ctx, "equipment_prices?effective_from=lte.now()&select=*&order=effective_from.desc"),
       ]);
+      const currentPrices = prices.filter((price:any,index:number,list:any[]) => list.findIndex((x:any)=>x.asset_type===price.asset_type&&x.period===price.period)===index);
       const rentals=[...openRentals,...completedRentals,...annulledRentals].sort((a:any,b:any)=>String(b.started_at).localeCompare(String(a.started_at)));
-      return json({ rentals, available_bikes: bikes, correction_bikes: correctionBikes, kiosks, discrepancies, summary });
+      return json({ rentals, available_bikes: bikes, correction_bikes: correctionBikes, kiosks, discrepancies, summary, equipment_types: equipmentTypes, prices: currentPrices });
     }
     if (parts[0] === "rentals" && parts[1] && parts[2] === "correct" && request.method === "PATCH") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
@@ -62,26 +65,28 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       }) });
       return json(result);
     }
-    if (parts[0] === "rentals" && parts[1] && parts[2] === "extend-day" && request.method === "POST") {
-      const rental = (await db(ctx, `rentals?id=eq.${q(parts[1])}&select=id,started_by,status,rental_kind,rental_period`))[0];
+    if (parts[0] === "rentals" && parts[1] && parts[2] === "change-duration" && request.method === "POST") {
+      const rental = (await db(ctx, `rentals?id=eq.${q(parts[1])}&select=id,started_by,status,rental_kind,rental_period,rental_hours`))[0];
       if (!rental) return err("Aluguer não encontrado.", 404);
       if (rental.status !== "Em aberto") return err("Só é possível prolongar um aluguer em aberto.", 409);
       if (rental.rental_kind === "institutional") return err("As utilizações institucionais não têm período de aluguer.", 409);
-      if (rental.rental_period === "day") return err("Este aluguer já está registado como 1 dia.", 409);
       if (ctx.user.role !== "admin" && rental.started_by !== ctx.user.id)
         return err("Não pode alterar alugueres de outro utilizador.", 403);
-      const result = await db(ctx, "rpc/extend_open_rental_to_day", { method: "POST", body: JSON.stringify({
-        p_rental_id: parts[1], p_user_id: ctx.user.id,
+      const b=await body(request),period=String(b.rental_period||""),hours=period==="hour"?Number(b.rental_hours):null;
+      if(!["hour","day"].includes(period)||(period==="hour"&&(!Number.isSafeInteger(hours)||Number(hours)<1||Number(hours)>168))) return err("Selecione uma duração válida.");
+      const result = await db(ctx, "rpc/change_open_rental_duration", { method: "POST", body: JSON.stringify({
+        p_rental_id: parts[1],p_period:period,p_hours:hours,p_user_id: ctx.user.id,
       }) });
       return json(result);
     }
-    if (parts[0] === "rentals" && parts[1] && parts[2] === "correct-period" && request.method === "PATCH") {
+    if (parts[0] === "rentals" && parts[1] && parts[2] === "correct-duration" && request.method === "PATCH") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
-      const b = await body(request), period = String(b.rental_period || ""), reason = String(b.reason || "").trim();
+      const b = await body(request), period = String(b.rental_period || ""), hours=period==="hour"?Number(b.rental_hours):null, reason = String(b.reason || "").trim();
       if (!["hour", "day"].includes(period)) return err("Selecione um período válido.");
+      if(period==="hour"&&(!Number.isSafeInteger(hours)||Number(hours)<1||Number(hours)>168)) return err("Indique um número de horas válido.");
       if (reason.length < 5) return err("Indique o motivo da correção (pelo menos 5 caracteres).");
-      const result = await db(ctx, "rpc/admin_correct_rental_period", { method: "POST", body: JSON.stringify({
-        p_rental_id: parts[1], p_period: period, p_user_id: ctx.user.id, p_reason: reason,
+      const result = await db(ctx, "rpc/admin_correct_rental_duration", { method: "POST", body: JSON.stringify({
+        p_rental_id: parts[1], p_period: period,p_hours:hours, p_user_id: ctx.user.id, p_reason: reason,
       }) });
       return json(result);
     }
@@ -89,7 +94,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const b = await body(request),
         customerContact = String(b.customer_contact || "").trim(),
         chargedAmount = Number(b.charged_amount);
-      const rentalKind = String(b.rental_kind || "normal"), rentalPeriod = String(b.rental_period || "hour");
+      const rentalKind = String(b.rental_kind || "normal"), rentalPeriod = String(b.rental_period || "hour"), rentalHours=Number(b.rental_hours || 1);
       if (
         !b.customer_ref?.trim() ||
         !Array.isArray(b.bike_ids) ||
@@ -104,6 +109,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         return err("Indique o valor cobrado por Multibanco.");
       if (!["normal","resident","institutional"].includes(rentalKind) || (rentalKind !== "institutional" && !["hour","day"].includes(rentalPeriod)))
         return err("Selecione um tipo e um período de utilização válidos.");
+      if (rentalKind !== "institutional" && rentalPeriod === "hour" && (!Number.isSafeInteger(rentalHours) || rentalHours < 1 || rentalHours > 168)) return err("Indique um número de horas entre 1 e 168.");
       if (rentalKind === "resident" && (b.oeiras_move_confirmed !== true || !["AT","Dístico de residente","Subscrição 120 minutos"].includes(String(b.resident_proof_type))))
         return err("Confirme as condições do benefício de residente.");
       if (rentalKind === "institutional" && (!["Parques Tejo","Município de Oeiras"].includes(String(b.institutional_entity)) || !String(b.institutional_person || "").trim()))
@@ -119,6 +125,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           p_charged_amount: chargedAmount,
           p_rental_kind: rentalKind,
           p_rental_period: rentalKind === "institutional" ? null : rentalPeriod,
+          p_rental_hours: rentalKind !== "institutional" && rentalPeriod === "hour" ? rentalHours : null,
           p_oeiras_move_confirmed: b.oeiras_move_confirmed === true,
           p_resident_proof_type: b.resident_proof_type || null,
           p_institutional_entity: b.institutional_entity || null,

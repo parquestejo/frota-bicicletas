@@ -1,15 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, post } from "./api";
-import type { AssetType, Bike, Kiosk, User } from "./types";
+import type { Bike, EquipmentPrice, EquipmentType, Kiosk, User } from "./types";
 
 type RentalKind = "normal" | "resident" | "institutional";
 type RentalPeriod = "hour" | "day";
-const prices: Record<RentalPeriod, Record<AssetType, number>> = {
-  hour: { electric: 4, conventional: 2, child: 2, stroller: 2, helmet: 1, lock: 0 },
-  day: { electric: 10, conventional: 6, child: 3, stroller: 3, helmet: 1, lock: 0 },
-};
-const bicycles = new Set<AssetType>(["electric", "conventional", "child"]);
 const money = (value: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value);
 
 export function NewRental({ user }: { user: User }) {
@@ -17,6 +12,8 @@ export function NewRental({ user }: { user: User }) {
   const [data, setData] = useState<{
       available_bikes: Bike[];
       kiosks: Kiosk[];
+      equipment_types: EquipmentType[];
+      prices: EquipmentPrice[];
     } | null>(null),
     [loadError, setLoadError] = useState(""),
     [message, setMessage] = useState(""),
@@ -24,6 +21,7 @@ export function NewRental({ user }: { user: User }) {
     [customerContact, setCustomerContact] = useState(""),
     [kind, setKind] = useState<RentalKind>("normal"),
     [period, setPeriod] = useState<RentalPeriod>("hour"),
+    [hours, setHours] = useState(1),
     [oeirasMove, setOeirasMove] = useState(false),
     [residentProof, setResidentProof] = useState(""),
     [institutionalEntity, setInstitutionalEntity] = useState(""),
@@ -32,7 +30,7 @@ export function NewRental({ user }: { user: User }) {
     [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<{ available_bikes: Bike[]; kiosks: Kiosk[] }>("/rentals")
+    api<{ available_bikes: Bike[]; kiosks: Kiosk[]; equipment_types: EquipmentType[]; prices: EquipmentPrice[] }>("/rentals")
       .then(setData)
       .catch((e) => setLoadError(e.message));
   }, []);
@@ -71,6 +69,7 @@ export function NewRental({ user }: { user: User }) {
         charged_amount: payableAmount,
         rental_kind: kind,
         rental_period: kind === "institutional" ? null : period,
+        rental_hours: kind !== "institutional" && period === "hour" ? hours : null,
         oeiras_move_confirmed: kind === "resident" ? oeirasMove : false,
         resident_proof_type: kind === "resident" ? residentProof : null,
         institutional_entity: kind === "institutional" ? institutionalEntity : null,
@@ -87,11 +86,14 @@ export function NewRental({ user }: { user: User }) {
   const available =
     data?.available_bikes.filter((bike) => bike.kiosk_id === kiosk) || [];
   const chosen = available.filter((item) => selected.includes(item.id));
-  const commercialAmount = chosen.reduce((sum, item) => sum + prices[period][item.asset_type], 0);
+  const price = (type:string, pricePeriod: RentalPeriod) => Number(data?.prices.find(item => item.asset_type === type && item.period === pricePeriod)?.amount || 0);
+  const durationPrice = (type:string) => period === "day" ? price(type,"day") : Math.min(price(type,"hour") * hours, price(type,"day"));
+  const definition = (type:string) => data?.equipment_types.find(item => item.code === type);
+  const commercialAmount = chosen.reduce((sum, item) => sum + durationPrice(item.asset_type), 0);
   const payableAmount = kind === "institutional" ? 0 : kind === "resident"
-    ? chosen.filter((item) => !bicycles.has(item.asset_type)).reduce((sum, item) => sum + prices[period][item.asset_type], 0)
+    ? chosen.filter((item) => !definition(item.asset_type)?.resident_free).reduce((sum, item) => sum + durationPrice(item.asset_type), 0)
     : commercialAmount;
-  const depositAmount = kind === "institutional" ? 0 : chosen.filter((item) => bicycles.has(item.asset_type)).length * 50;
+  const depositAmount = kind === "institutional" ? 0 : chosen.reduce((sum,item)=>sum+Number(definition(item.asset_type)?.deposit_amount || 0),0);
 
   return (
     <>
@@ -131,7 +133,7 @@ export function NewRental({ user }: { user: User }) {
               <label><input type="radio" checked={kind === "institutional"} onChange={()=>setKind("institutional")}/> Atividade institucional</label>
             </div>
           </fieldset>
-          {kind !== "institutional" && <label>Período<select value={period} onChange={(e)=>setPeriod(e.target.value as RentalPeriod)}><option value="hour">1 hora</option><option value="day">1 dia</option></select></label>}
+          {kind !== "institutional" && <div className="form-grid"><label>Modalidade<select value={period} onChange={(e)=>setPeriod(e.target.value as RentalPeriod)}><option value="hour">Pagamento à hora</option><option value="day">1 dia</option></select></label>{period === "hour" && <label>Número de horas<input type="number" min="1" max="168" step="1" value={hours} onChange={(e)=>setHours(Math.max(1,Math.min(168,Number(e.target.value)||1)))}/></label>}</div>}
           {kind === "resident" && <fieldset className="resident-benefit"><legend>Condições do benefício</legend>
             <label className="check-line"><input type="checkbox" checked={oeirasMove} onChange={(e)=>setOeirasMove(e.target.checked)}/> <span>App Oeiras Move instalada</span></label>
             <label>Comprovativo de residência<select value={residentProof} onChange={(e)=>setResidentProof(e.target.value)}><option value="">Selecionar…</option><option>AT</option><option>Dístico de residente</option><option>Subscrição 120 minutos</option></select></label>
@@ -157,7 +159,7 @@ export function NewRental({ user }: { user: User }) {
               ))}
             </select>
           </label>
-          <div className="notice"><b>{kind === "institutional" ? "Utilização institucional — sem cobrança" : `Total a cobrar: ${money(payableAmount)}`}</b><br/>{kind === "institutional" ? "Caução dispensada" : `Caução a solicitar: ${money(depositAmount)} (${money(50)} por bicicleta)`}</div>
+          <div className="notice"><b>{kind === "institutional" ? "Utilização institucional — sem cobrança" : `Total a cobrar: ${money(payableAmount)}`}</b><br/>{kind === "institutional" ? "Caução dispensada" : `Caução a solicitar: ${money(depositAmount)}`}</div>
           <fieldset aria-invalid={!!message && !selected.length}>
             <legend>Bicicletas e acessórios disponíveis</legend>
             <div className="bike-picker">
