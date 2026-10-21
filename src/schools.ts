@@ -1,0 +1,13 @@
+export const SCHOOLS = [
+  "Amélia Rey Colaço (Escola Sede)", "Amélia Vieira Luís", "Anselmo de Oliveira", "Antero Basalisa",
+  "António Rebelo de Andrade", "Aquilino Ribeiro (Escola Sede)", "Armando Guerreiro", "Camilo Castelo Branco (Escola Sede)",
+  "Cesário Verde", "Conde de Ferreira", "Conde de Oeiras (Escola Sede)", "D. Pedro V", "de Porto Salvo",
+  "de Santo António de Tercena", "de São Bruno (Escola Sede)", "de São Julião da Barra", "Dionísio dos Santos Matias",
+  "Dr. Joaquim de Barros", "Gil Vicente", "Gomes Freire de Andrade", "João Gonçalves Zarco", "Jorge Mineiro",
+  "José Martins", "Luís de Freitas Branco (Escola Sede)", "Luísa Ducla Soares", "Manuel Beça Múrias",
+  "Maria Luciana Seruca", "Narcisa Pereira", "Nossa Senhora do Vale", "Pedro Álvares Cabral", "Professor Carlos Neto",
+  "Professor José Augusto Lucas (Escola Sede)", "Professor Noronha Feio", "Professor Santana Castilho (Escola Sede)",
+  "Professora Carmelinda Pereira", "Quinta do Marquês", "Roberto Ivens", "Sá de Miranda", "Samuel Johnson",
+  "São Bento", "Sebastião e Silva", "Sophia de Mello Breyner (Escola Sede)", "Sylvia Philips", "Tomás Ribeiro",
+  "Vieira da Silva", "Visconde de Leceia",
+] as const;

@@ -70,6 +70,7 @@ export interface Rental {
   institutional_person?: string;
   price_override_reason?: string;
   start_kiosk_id: string;
+  started_by?: string;
   status: "Em aberto" | "Concluído" | "Anulado";
   started_at: string;
   returned_at?: string;

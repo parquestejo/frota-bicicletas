@@ -2,6 +2,7 @@ import {
   type Ctx, json, err, db, dbAll, dbCount, body, audit, allow, q,
   passwordHash, uploadReceipt, readReceipt,
 } from "../_shared";
+import { SCHOOLS } from "../schools";
 
 export async function handleRentalRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
     if (route === "/admin/customers" && request.method === "GET") {
@@ -39,7 +40,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       if(!current)return err("Cliente não encontrado.",404);
       if(name.length<2)return err("Indique o nome do cliente.");
       if(current.kind==="frequent"&&(!phone||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return err("Indique um contacto e um email válidos.");
-      if(current.kind==="school"&&!school)return err("Indique a escola.");
+      if(current.kind==="school"&&!SCHOOLS.has(school))return err("Selecione uma escola da lista.");
       const rows=await db(ctx,`customer_profiles?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify({name,phone:current.kind==="frequent"?phone:null,email:current.kind==="frequent"?email:null,school:current.kind==="school"?school:null,active:b.active===true,updated_at:new Date().toISOString()})});
       await audit(ctx,"editar perfil de cliente","cliente",parts[2],current,rows[0]);
       return json({customer:rows[0]});
@@ -62,7 +63,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
     if (route === "/customer-profiles" && request.method === "POST") {
       const b=await body(request),kind=String(b.kind||""),name=String(b.name||"").trim(),nif=String(b.nif||"").replace(/\D/g,""),school=String(b.school||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase();
       if(!["frequent","school"].includes(kind)||name.length<2||nif.length!==9) return err("Preencha corretamente o nome, NIF e tipo de registo.");
-      if(kind==="school"&&(!school||b.adult_present_confirmed!==true)) return err("Indique a escola e confirme a presença de um adulto.");
+      if(kind==="school"&&(!SCHOOLS.has(school)||b.adult_present_confirmed!==true)) return err("Selecione uma escola da lista e confirme a presença de um adulto.");
       const existing=(await db(ctx,`customer_profiles?nif=eq.${q(nif)}&select=*&limit=1`))[0];
       const renewal=kind==="frequent"&&b.renew_only===true&&existing?.kind==="frequent";
       if(kind==="frequent"&&(!String(b.authorization_code||"").trim()||(!renewal&&(!phone||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^[0-9+().\s-]{3,50}$/.test(phone)||b.verified!==true)))) return err("Indique e valide presencialmente o contacto, email e código de autorização.");
@@ -87,7 +88,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const [openRentals, completedRentals, annulledRentals, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices] = await Promise.all([
         db(
           ctx,
-          `rentals?${rentalSelect}&status=eq.Em%20aberto${owner}&order=started_at.desc`,
+          `rentals?${rentalSelect}&status=eq.Em%20aberto&order=started_at.desc`,
         ),
         db(
           ctx,
@@ -136,6 +137,22 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         p_user_id: ctx.user.id, p_reason: reason,
       }) });
       return json(result);
+    }
+    if (parts[0] === "rentals" && parts[1] && parts[2] === "add-missing-item" && request.method === "POST") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const b=await body(request),reason=String(b.reason||"").trim();
+      if(!b.bike_id)return err("Selecione o item que ficou por registar.");
+      if(reason.length<5)return err("Indique o motivo da correção (pelo menos 5 caracteres).");
+      const rental=(await db(ctx,`rentals?id=eq.${q(parts[1])}&select=id,status&limit=1`))[0];
+      if(!rental)return err("Aluguer não encontrado.",404);
+      const result=rental.status==="Em aberto"
+        ? await db(ctx,"rpc/add_bike_to_open_rental",{method:"POST",body:JSON.stringify({p_rental_id:parts[1],p_bike_id:b.bike_id,p_user_id:ctx.user.id})})
+        : rental.status==="Concluído"
+          ? await db(ctx,"rpc/admin_add_missing_rental_item",{method:"POST",body:JSON.stringify({p_rental_id:parts[1],p_bike_id:b.bike_id,p_return_kiosk_id:b.return_kiosk_id,p_returned_at:b.returned_at,p_user_id:ctx.user.id,p_reason:reason})})
+          : null;
+      if(!result)return err("Não é possível acrescentar itens a um aluguer anulado.",409);
+      await audit(ctx,"adicionar item omitido","aluguer",parts[1],null,{bike_id:b.bike_id,reason});
+      return json(result,201);
     }
     if (parts[0] === "rentals" && parts[1] && parts[2] === "change-duration" && request.method === "POST") {
       const rental = (await db(ctx, `rentals?id=eq.${q(parts[1])}&select=id,started_by,status,rental_kind,rental_period,rental_hours`))[0];
