@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   NavLink,
   Navigate,
@@ -8,25 +8,24 @@ import {
 } from "react-router-dom";
 import { api, post } from "./api";
 import type { User } from "./types";
-import {
-  BikeDetail,
-  Dashboard,
-  Fleet,
-  Rentals,
-  Faults,
-  FaultReport,
-  Profile,
-  Reports,
-  Users,
-} from "./pages";
-import { NewRental } from "./NewRental";
-import { Activity } from "./Activity";
-import { DailyClosures } from "./DailyClosures";
 import { FeedbackProvider } from "./Feedback";
 import { NotificationCenter } from "./Notifications";
-import { EmailSettings } from "./EmailSettings";
-import { Catalog } from "./Catalog";
-import { Customers } from "./Customers";
+
+const Dashboard = lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.Dashboard })));
+const Fleet = lazy(() => import("./pages/Fleet").then((m) => ({ default: m.Fleet })));
+const BikeDetail = lazy(() => import("./pages/BikeDetail").then((m) => ({ default: m.BikeDetail })));
+const Rentals = lazy(() => import("./pages/Rentals").then((m) => ({ default: m.Rentals })));
+const Faults = lazy(() => import("./pages/Faults").then((m) => ({ default: m.Faults })));
+const FaultReport = lazy(() => import("./pages/FaultReport").then((m) => ({ default: m.FaultReport })));
+const Profile = lazy(() => import("./pages/Profile").then((m) => ({ default: m.Profile })));
+const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
+const Users = lazy(() => import("./pages/Users").then((m) => ({ default: m.Users })));
+const NewRental = lazy(() => import("./NewRental").then((m) => ({ default: m.NewRental })));
+const Activity = lazy(() => import("./Activity").then((m) => ({ default: m.Activity })));
+const DailyClosures = lazy(() => import("./DailyClosures").then((m) => ({ default: m.DailyClosures })));
+const EmailSettings = lazy(() => import("./EmailSettings").then((m) => ({ default: m.EmailSettings })));
+const Catalog = lazy(() => import("./Catalog").then((m) => ({ default: m.Catalog })));
+const Customers = lazy(() => import("./Customers").then((m) => ({ default: m.Customers })));
 
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [username, setUsername] = useState("");
@@ -242,6 +241,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
         ))}
       </nav>
       <main className="content">
+        <Suspense fallback={<p className="loading">A carregar…</p>}>
         <Routes>
           <Route path="/" element={<Dashboard user={user} />} />
           <Route path="/frota" element={<Fleet user={user} />} />
@@ -313,6 +313,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
           <Route path="/emails" element={user.role === "admin" ? <EmailSettings /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </Suspense>
       </main>
     </div>
   );

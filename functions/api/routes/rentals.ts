@@ -14,9 +14,12 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         db(ctx,`deposit_authorizations?customer_profile_id=in.(${ids})&select=*&order=authorized_at.desc`),
         db(ctx,`rentals?customer_profile_id=in.(${ids})&status=eq.Concluído&select=id,customer_profile_id,estimated_distance_km,estimated_co2_kg&limit=5000`),
       ]);
+      const rentalsByProfile=new Map<string,any[]>(),latestAuthByProfile=new Map<string,any>();
+      for(const rental of rentals){const list=rentalsByProfile.get(rental.customer_profile_id)||[];list.push(rental);rentalsByProfile.set(rental.customer_profile_id,list);}
+      for(const authorization of auths)if(!latestAuthByProfile.has(authorization.customer_profile_id))latestAuthByProfile.set(authorization.customer_profile_id,authorization);
       const customers=profiles.map((profile:any)=>{
-        const profileRentals=rentals.filter((r:any)=>r.customer_profile_id===profile.id);
-        const latest=auths.find((a:any)=>a.customer_profile_id===profile.id)||null;
+        const profileRentals=rentalsByProfile.get(profile.id)||[];
+        const latest=latestAuthByProfile.get(profile.id)||null;
         const activeAuthorization=latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null;
         return {...profile,nif:`*** *** ${String(profile.nif).slice(-3)}`,active_authorization:activeAuthorization,last_authorization:latest,activity:{rental_count:profileRentals.length,estimated_distance_km:profileRentals.reduce((s:number,r:any)=>s+Number(r.estimated_distance_km||0),0),estimated_co2_kg:profileRentals.reduce((s:number,r:any)=>s+Number(r.estimated_co2_kg||0),0)}};
       });
@@ -88,7 +91,9 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         ctx.user.role === "admin" ? "" : `&started_by=eq.${q(ctx.user.id)}`;
       const discrepancyOwner =
         ctx.user.role === "admin" ? "" : `&created_by=eq.${q(ctx.user.id)}`;
-      const rentalSelect = "select=*,start_kiosk:kiosks(*),customer_profile:customer_profiles(id,kind,name,school),deposit_authorization:deposit_authorizations(id,authorization_code,amount,authorized_at,expires_at,status),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
+      // Este ecrã é operacional: enviar apenas os campos efetivamente usados
+      // evita transferir centenas de registos e relações completas em cada visita.
+      const rentalSelect = "select=id,reference,customer_ref,customer_contact,start_kiosk_id,status,started_at,started_by,returned_at,returned_by,charged_amount,rental_kind,rental_period,rental_hours,expected_amount,discount_amount,institutional_entity,institutional_person,authorization_code,customer_profile_id,deposit_authorization_id,estimated_distance_km,estimated_co2_kg,corrected_at,correction_reason,start_kiosk:kiosks(id,name),customer_profile:customer_profiles(id,kind,name,school),deposit_authorization:deposit_authorizations(id,authorization_code,amount,authorized_at,expires_at,status),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(id,rental_id,bike_id,returned_at,returned_by,return_kiosk_id,anomaly,anomaly_description,deposit_retained,deposit_retention_reason,bike:bikes(id,code,asset_type,model,kiosk_id,status,active),return_kiosk:kiosks(id,name),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
       const [openRentals, completedRentals, annulledRentals, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices] = await Promise.all([
         db(
           ctx,
@@ -96,21 +101,21 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         ),
         db(
           ctx,
-          `rentals?${rentalSelect}&status=eq.Concluído${owner}&order=started_at.desc&limit=500`,
+          `rentals?${rentalSelect}&status=eq.Concluído${owner}&order=started_at.desc&limit=150`,
         ),
-        ctx.user.role === "admin" ? db(ctx, `rentals?${rentalSelect}&status=eq.Anulado&order=started_at.desc&limit=500`) : Promise.resolve([]),
+        ctx.user.role === "admin" ? db(ctx, `rentals?${rentalSelect}&status=eq.Anulado&order=started_at.desc&limit=50`) : Promise.resolve([]),
         db(
           ctx,
-          "bikes?active=eq.true&status=eq.Disponível&select=*,kiosk:kiosks!inner(*)&kiosk.allows_rentals=eq.true&order=code",
+          "bikes?active=eq.true&status=eq.Disponível&select=id,code,asset_type,model,kiosk_id,status,active,kiosk:kiosks!inner(id,name,allows_rentals)&kiosk.allows_rentals=eq.true&order=code",
         ),
-        ctx.user.role === "admin" ? db(ctx, "bikes?select=*,kiosk:kiosks(*)&order=code") : Promise.resolve([]),
+        ctx.user.role === "admin" ? db(ctx, "bikes?select=id,code,asset_type,model,kiosk_id,status,active,kiosk:kiosks(id,name)&order=code") : Promise.resolve([]),
         db(
           ctx,
           "kiosks?active=eq.true&allows_rentals=eq.true&select=*&order=name",
         ),
         db(
           ctx,
-          `rental_discrepancies?select=*,rental:rentals(reference,customer_ref),created_by_user:users!rental_discrepancies_created_by_fkey(full_name),resolved_by_user:users!rental_discrepancies_resolved_by_fkey(full_name)${discrepancyOwner}&order=created_at.desc&limit=500`,
+          `rental_discrepancies?status=eq.Pendente&select=id,rental_id,bike_code,description,status,created_at,created_by,rental:rentals(reference,customer_ref),created_by_user:users!rental_discrepancies_created_by_fkey(full_name)${discrepancyOwner}&order=created_at.desc&limit=100`,
         ),
         db(ctx, "rpc/rental_period_summary", {
           method: "POST",
