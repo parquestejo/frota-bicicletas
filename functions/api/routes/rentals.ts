@@ -46,6 +46,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       return json({customer:rows[0]});
     }
     if (route === "/customer-profiles" && request.method === "GET") {
+      if (ctx.user.role === "manutencao") return err("O perfil de manutenção não tem acesso aos clientes.", 403);
       const searchParams=new URL(request.url).searchParams;
       const nif=(searchParams.get("nif")||"").replace(/\D/g,"");
       const includeHistory=searchParams.get("history")==="1";
@@ -61,11 +62,14 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       return json({profile:{...profiles[0],masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:active,last_authorization:latest,activity,rentals,history_loaded:includeHistory}});
     }
     if (route === "/customer-profiles" && request.method === "POST") {
+      if (ctx.user.role === "manutencao") return err("O perfil de manutenção não tem acesso aos clientes.", 403);
       const b=await body(request),kind=String(b.kind||""),name=String(b.name||"").trim(),nif=String(b.nif||"").replace(/\D/g,""),school=String(b.school||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase();
       if(!["frequent","school"].includes(kind)||name.length<2||nif.length!==9) return err("Preencha corretamente o nome, NIF e tipo de registo.");
       if(kind==="school"&&(!SCHOOLS.has(school)||b.adult_present_confirmed!==true)) return err("Selecione uma escola da lista e confirme a presença de um adulto.");
       const existing=(await db(ctx,`customer_profiles?nif=eq.${q(nif)}&select=*&limit=1`))[0];
+      if(existing&&existing.kind!==kind)return err("Este NIF já está associado a outro tipo de registo.",409);
       const renewal=kind==="frequent"&&b.renew_only===true&&existing?.kind==="frequent";
+      if(existing&&!renewal&&ctx.user.role!=="admin")return err("A alteração de um registo existente está reservada ao administrador.",403);
       if(kind==="frequent"&&(!String(b.authorization_code||"").trim()||(!renewal&&(!phone||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^[0-9+().\s-]{3,50}$/.test(phone)||b.verified!==true)))) return err("Indique e valide presencialmente o contacto, email e código de autorização.");
       const verifiedFields=kind==="frequent"?{verified_by:ctx.user.id,verified_at:new Date().toISOString()}:{verified_by:null,verified_at:null};
       const rows=renewal?[existing]:existing?await db(ctx,`customer_profiles?id=eq.${q(existing.id)}`,{method:"PATCH",body:JSON.stringify({kind,name,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,adult_present_confirmed:kind==="school",active:true,updated_at:new Date().toISOString()})}):await db(ctx,"customer_profiles",{method:"POST",body:JSON.stringify({kind,name,nif,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,adult_present_confirmed:kind==="school",created_by:ctx.user.id})});
@@ -74,7 +78,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         await db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(profile.id)}&status=eq.active`,{method:"PATCH",body:JSON.stringify({status:"expired"})});
         const authRows=await db(ctx,"deposit_authorizations",{method:"POST",body:JSON.stringify({customer_profile_id:profile.id,authorization_code:String(b.authorization_code).trim(),amount:50,authorized_at:new Date().toISOString(),expires_at:new Date(Date.now()+30*86400000).toISOString(),created_by:ctx.user.id})}); activeAuthorization=authRows[0];
       }
-      await audit(ctx,"criar/atualizar perfil de cliente","cliente",profile.id,null,{kind:profile.kind,school:profile.school});
+      await audit(ctx,"criar/atualizar perfil de cliente","cliente",profile.id,existing?{kind:existing.kind,active:existing.active,school:existing.school}:null,{kind:profile.kind,active:profile.active,school:profile.school},existing?"Dados do perfil atualizados ou caução renovada":"Novo perfil criado");
       return json({profile:{...profile,masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:activeAuthorization}},201);
     }
     if (parts[0] === "rentals" && ctx.user.role === "manutencao")
@@ -121,13 +125,17 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
     }
     if (parts[0] === "rentals" && parts[1] && parts[2] === "correct" && request.method === "PATCH") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
-      const b = await body(request), reason = String(b.reason || "").trim(), amount = Number(b.charged_amount);
+      const b = await body(request), reason = String(b.reason || "").trim(), amount = Math.round(Number(b.charged_amount)*100)/100;
       if (reason.length < 5) return err("Indique o motivo da correção (pelo menos 5 caracteres).");
       if (!String(b.customer_ref || "").trim()) return err("Indique a referência do cliente.");
       if (!Number.isFinite(amount) || amount < 0) return err("Indique um valor cobrado válido.");
       const current = (await db(ctx, `rentals?id=eq.${q(parts[1])}&select=id,status`))[0];
       if (!current) return err("Aluguer não encontrado.", 404);
       if (current.status === "Anulado") return err("Este aluguer já está anulado.", 409);
+      if (b.void && current.status === "Em aberto") {
+        const result=await db(ctx,"rpc/admin_void_open_rental_safe",{method:"POST",body:JSON.stringify({p_rental_id:parts[1],p_user_id:ctx.user.id,p_reason:reason})});
+        return json(result);
+      }
       const result = await db(ctx, "rpc/admin_correct_rental", { method: "POST", body: JSON.stringify({
         p_rental_id: parts[1], p_customer_ref: String(b.customer_ref).trim(),
         p_customer_contact: String(b.customer_contact || "").trim() || null,
@@ -151,7 +159,6 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           ? await db(ctx,"rpc/admin_add_missing_rental_item",{method:"POST",body:JSON.stringify({p_rental_id:parts[1],p_bike_id:b.bike_id,p_return_kiosk_id:b.return_kiosk_id,p_returned_at:b.returned_at,p_user_id:ctx.user.id,p_reason:reason})})
           : null;
       if(!result)return err("Não é possível acrescentar itens a um aluguer anulado.",409);
-      await audit(ctx,"adicionar item omitido","aluguer",parts[1],null,{bike_id:b.bike_id,reason});
       return json(result,201);
     }
     if (parts[0] === "rentals" && parts[1] && parts[2] === "change-duration" && request.method === "POST") {
@@ -182,7 +189,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
     if (route === "/rentals" && request.method === "POST") {
       const b = await body(request),
         customerContact = String(b.customer_contact || "").trim(),
-        chargedAmount = Number(b.charged_amount);
+        chargedAmount = Math.round(Number(b.charged_amount) * 100) / 100;
       const rentalKind = String(b.rental_kind || "normal"), rentalPeriod = String(b.rental_period || "hour"), rentalHours=Number(b.rental_hours || 1);
       if (
         !b.customer_ref?.trim() ||
@@ -383,7 +390,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const rental = (
         await db(
           ctx,
-          `rentals?id=eq.${parts[1]}&select=id,started_by,start_kiosk_id,rental_kind,started_at`,
+          `rentals?id=eq.${q(parts[1])}&select=id,started_by,start_kiosk_id,rental_kind,started_at`,
         )
       )[0];
       if (!rental) return err("Aluguer não encontrado.", 404);

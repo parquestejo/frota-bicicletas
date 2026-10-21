@@ -13,9 +13,9 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const notify = useCallback((text: string, kind: FeedbackKind = "info") => {
     const id = Date.now() + Math.random();
     setMessages((current) => [...current, { id, kind, text }].slice(-4));
-    window.setTimeout(
+    if (kind !== "error") window.setTimeout(
       () => setMessages((current) => current.filter((message) => message.id !== id)),
-      kind === "error" ? 7000 : 4500,
+      4500,
     );
   }, []);
   const value = useMemo(() => ({ notify }), [notify]);

@@ -1,6 +1,8 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.2.0
+## Versão 2.5.0
+
+Esta versão inclui o endurecimento das permissões Supabase, correções de integridade nas anulações e itens omitidos, validação dos perfis de clientes, preços seguros com cêntimos e mensagens de erro operacionais.
 
 - Pagamento à hora com escolha livre do número de horas.
 - O preço horário é multiplicado pelo número de horas escolhido, tendo o preço diário de cada equipamento como valor máximo.
@@ -131,7 +133,14 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/014_pdf_reports_and_free_rentals.sql`
    - `supabase/migrations/015_admin_corrections_and_email_reports.sql`
    - `supabase/migrations/016_pricing_and_institutional_use.sql`
+   - `supabase/migrations/017_rental_period_corrections.sql`
+   - `supabase/migrations/018_kiosk_bicycle_counts.sql`
+   - `supabase/migrations/019_kiosk_item_breakdown.sql`
+   - `supabase/migrations/020_admin_catalog_and_prices.sql`
    - `supabase/migrations/021_hourly_duration.sql`
+   - `supabase/migrations/022_customer_programs_and_co2.sql`
+   - `supabase/migrations/023_missing_rental_items.sql`
+   - `supabase/migrations/024_security_and_integrity.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -145,7 +154,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Numa instalação existente que já tenha a versão 2.1.0, execute apenas `supabase/migrations/021_hourly_duration.sql`. Não volte a executar o `seed` nem as migrações anteriores.
+Execute, por ordem, apenas as migrações que ainda não tenham sido aplicadas. Para atualizar da versão 2.4.2 para a 2.5.0, execute `supabase/migrations/024_security_and_integrity.sql`. Não volte a executar o `seed`.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 

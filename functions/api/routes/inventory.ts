@@ -235,14 +235,14 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
           ? Promise.resolve([])
           : db(
               ctx,
-              `rental_items?bike_id=eq.${parts[1]}&select=*,return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name),rental:rentals(*,start_kiosk:kiosks(*),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name))&order=returned_at.desc.nullsfirst`,
+              `rental_items?bike_id=eq.${q(parts[1])}&select=*,return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name),rental:rentals(*,start_kiosk:kiosks(*),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name))&order=returned_at.desc.nullsfirst`,
             );
       const [bike, items, faults] = await Promise.all([
-        db(ctx, `bikes?id=eq.${parts[1]}&select=*,kiosk:kiosks(*)`),
+        db(ctx, `bikes?id=eq.${q(parts[1])}&select=*,kiosk:kiosks(*)`),
         itemsPromise,
         db(
           ctx,
-          `faults?bike_id=eq.${parts[1]}&select=*,created_by_user:users!faults_created_by_fkey(full_name),interventions:maintenance_interventions(*,created_by_user:users!maintenance_interventions_created_by_fkey(full_name))&order=created_at.desc`,
+          `faults?bike_id=eq.${q(parts[1])}&select=*,created_by_user:users!faults_created_by_fkey(full_name),interventions:maintenance_interventions(*,created_by_user:users!maintenance_interventions_created_by_fkey(full_name))&order=created_at.desc`,
         ),
       ]);
       if (!bike[0]) return err("Bicicleta não encontrada.", 404);
@@ -254,7 +254,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
           "Apenas administradores e manutenção podem alterar bicicletas.",
           403,
         );
-      const old = (await db(ctx, `bikes?id=eq.${parts[1]}&select=*`))[0];
+      const old = (await db(ctx, `bikes?id=eq.${q(parts[1])}&select=*`))[0];
       if (!old) return err("Bicicleta não encontrada.", 404);
       const b = await body(request),
         admin = ctx.user.role === "admin",

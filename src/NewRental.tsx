@@ -116,12 +116,13 @@ export function NewRental({ user }: { user: User }) {
   const price = (type:string, pricePeriod: RentalPeriod) => Number(data?.prices.find(item => item.asset_type === type && item.period === pricePeriod)?.amount || 0);
   const durationPrice = (type:string) => period === "day" ? price(type,"day") : Math.min(price(type,"hour") * hours, price(type,"day"));
   const definition = (type:string) => data?.equipment_types.find(item => item.code === type);
-  const commercialAmount = chosen.reduce((sum, item) => sum + durationPrice(item.asset_type), 0);
+  const commercialAmount = Math.round(chosen.reduce((sum, item) => sum + durationPrice(item.asset_type), 0) * 100) / 100;
   const helmetBenefit = chosen.filter((item)=>item.asset_type === "helmet").reduce((sum,item)=>sum+durationPrice(item.asset_type),0);
-  const payableAmount = kind === "institutional" || kind === "school" ? 0 : kind === "resident"
+  const payableAmountRaw = kind === "institutional" || kind === "school" ? 0 : kind === "resident"
     ? chosen.filter((item) => !definition(item.asset_type)?.resident_free).reduce((sum, item) => sum + durationPrice(item.asset_type), 0)
     : kind === "frequent" ? Math.max(0, commercialAmount - helmetBenefit)
     : commercialAmount;
+  const payableAmount = Math.round(payableAmountRaw * 100) / 100;
   const depositAmount = kind === "institutional" || (kind === "frequent" && customerProfile?.active_authorization) ? 0 : chosen.reduce((sum,item)=>sum+Number(definition(item.asset_type)?.deposit_amount || 0),0);
 
   async function findProfile() {
@@ -217,7 +218,7 @@ export function NewRental({ user }: { user: User }) {
           </label>
           <label>
             Quiosque de saída
-            <select value={kiosk} onChange={(e) => setKiosk(e.target.value)}>
+            <select value={kiosk} onChange={(e) => {setKiosk(e.target.value);setSelected([])}}>
               {data.kiosks.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}

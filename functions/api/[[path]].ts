@@ -26,7 +26,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204, headers: securityHeaders });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "2.4.2",
+        version: "2.5.0",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -169,6 +169,25 @@ export const onRequest: PagesFunction<Env> = async ({
     const m = String((e as Error).message);
     if (e instanceof DbError) {
       const detail = e.detail.toLowerCase();
+      const ruleMessages: Record<string, [string, number]> = {
+        bike_not_available: ["Um dos itens já não está disponível. Atualize a lista e escolha outro.", 409],
+        bike_has_open_rental: ["Este item tem um aluguer em aberto. Registe primeiro a devolução.", 409],
+        bike_has_other_open_rental: ["Um dos itens já está associado a outro aluguer em aberto.", 409],
+        bike_rental_period_overlap: ["O item já está associado a outro aluguer no mesmo período.", 409],
+        invalid_deposit_authorization: ["A caução do cliente não está ativa. Registe uma nova pré-autorização.", 409],
+        invalid_school_items: ["O Cartão Escolar permite uma bicicleta e, opcionalmente, um capacete.", 400],
+        invalid_charged_amount: ["O valor calculado foi alterado ou está desatualizado. Atualize a página e tente novamente.", 409],
+        duration_must_increase: ["A nova duração tem de ser superior à duração atual.", 400],
+        cannot_remove_last_bike: ["O aluguer tem de manter pelo menos uma bicicleta.", 409],
+        invalid_return_kiosk: ["Selecione um quiosque válido para a devolução.", 400],
+        invalid_returned_at: ["A data de devolução não é válida.", 400],
+        correction_reason_required: ["Indique o motivo da correção com pelo menos cinco caracteres.", 400],
+        rental_not_open: ["Este aluguer já não está em aberto. Atualize a página.", 409],
+        rental_not_completed: ["Esta operação só está disponível para alugueres concluídos.", 409],
+        duplicate_rental_item: ["Este item já pertence ao aluguer.", 409],
+      };
+      const translated=Object.entries(ruleMessages).find(([code])=>detail.includes(code));
+      if(translated){const [message,status]=translated[1];return err(message,status);}
       if (detail.includes("bike_has_open_rental"))
         return err("Esta bicicleta ainda tem um aluguer em aberto. Registe primeiro a devolução e depois atualize a avaria.", 409);
       if (detail.includes("other_open_faults"))
@@ -209,12 +228,9 @@ export const onRequest: PagesFunction<Env> = async ({
         );
       if (e.code === "23505")
         return err("Já existe um registo com estes dados.", 409);
-      return err(
-        e.code === "P0001"
-          ? `Não foi possível concluir a operação: ${e.detail || "regra de integridade não identificada"}.`
-          : `Erro de base de dados: código ${e.code}, estado ${e.status}.`,
-        500,
-      );
+      const occurrence=crypto.randomUUID().slice(0,8).toUpperCase();
+      console.error("database_error",occurrence,e.code,e.status,e.detail);
+      return err(`Não foi possível concluir a operação. Código de ocorrência: ${occurrence}.`,500);
     }
     if (m.includes("bike_not_available"))
       return err(
@@ -231,7 +247,8 @@ export const onRequest: PagesFunction<Env> = async ({
       return err("O item ainda tem outra avaria pendente e não pode ficar disponível.", 409);
     if (m.includes("duplicate") || m.includes("23505"))
       return err("Já existe um registo com estes dados.", 409);
-    const name = e instanceof Error ? e.name : "Erro desconhecido";
-    return err(`Erro interno ${name}: ${m.slice(0, 180)}`, 500);
+    const occurrence=crypto.randomUUID().slice(0,8).toUpperCase();
+    console.error("internal_error",occurrence,e);
+    return err(`Ocorreu um erro interno. Código de ocorrência: ${occurrence}.`, 500);
   }
 };

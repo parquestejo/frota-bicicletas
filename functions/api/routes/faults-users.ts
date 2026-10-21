@@ -117,7 +117,7 @@ export async function handleFaultAndUserRoutes(ctx: Ctx, request: Request, route
     ) {
       if (!allow(ctx, "admin"))
         return err("Acesso reservado a administradores.", 403);
-      const old = (await db(ctx, `users?id=eq.${parts[1]}&select=*`))[0],
+      const old = (await db(ctx, `users?id=eq.${q(parts[1])}&select=*`))[0],
         b = await body(request);
       if (!old) return err("Utilizador não encontrado.", 404);
       if (
@@ -166,7 +166,7 @@ export async function handleFaultAndUserRoutes(ctx: Ctx, request: Request, route
             : update.role === "manutencao"
               ? "manutencao"
               : "funcionario";
-      const rows = await db(ctx, `users?id=eq.${parts[1]}`, {
+      const rows = await db(ctx, `users?id=eq.${q(parts[1])}`, {
         method: "PATCH",
         body: JSON.stringify(update),
       });
@@ -190,11 +190,11 @@ export async function handleFaultAndUserRoutes(ctx: Ctx, request: Request, route
       const b = await body(request);
       if (String(b.password || "").length < 6)
         return err("A palavra-passe deve ter pelo menos 6 caracteres.");
-      await db(ctx, `users?id=eq.${parts[1]}`, {
+      await db(ctx, `users?id=eq.${q(parts[1])}`, {
         method: "PATCH",
         body: JSON.stringify({ password_hash: await passwordHash(b.password) }),
       });
-      await db(ctx, `sessions?user_id=eq.${parts[1]}`, {
+      await db(ctx, `sessions?user_id=eq.${q(parts[1])}`, {
         method: "PATCH",
         body: JSON.stringify({ revoked_at: new Date().toISOString() }),
       });
