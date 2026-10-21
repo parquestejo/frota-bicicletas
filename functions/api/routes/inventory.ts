@@ -37,7 +37,8 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       const todayLisbon = new Intl.DateTimeFormat("sv-SE", {
         timeZone: "Europe/Lisbon",
       }).format(new Date());
-      const [allBikes, allKiosks, rentals, faults, returns, dailyClosure, pendingFaultCount] =
+      const alertLimit=new Date(Date.now()+3*86400000).toISOString();
+      const [allBikes, allKiosks, rentals, faults, returns, dailyClosure, pendingFaultCount, depositAlerts] =
         await Promise.all([
         db(ctx, "bikes?active=eq.true&select=id,code,asset_type,status,kiosk_id"),
         db(ctx, "kiosks?active=eq.true&select=*"),
@@ -59,6 +60,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         ctx.user.role === "funcionario"
           ? Promise.resolve(0)
           : dbCount(ctx, "faults?status=in.(Aberta,Em%20análise,Em%20reparação)&select=id"),
+        ctx.user.role === "manutencao" ? Promise.resolve([]) : db(ctx,`deposit_authorizations?status=eq.active&expires_at=lte.${q(alertLimit)}&select=id,authorization_code,expires_at,customer_profile:customer_profiles(id,name)&order=expires_at.asc&limit=30`),
         ]);
       const kiosks=ctx.user.role==='funcionario'?allKiosks.filter((k:any)=>k.allows_rentals):allKiosks;
       const visibleKioskIds=new Set(kiosks.map((k:any)=>k.id));
@@ -142,6 +144,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         open_rentals: ctx.user.role === "manutencao" ? 0 : rentals.length,
         daily_closure: dailyClosure[0] || null,
         pending_faults: pendingFaultCount,
+        deposit_alerts: depositAlerts,
         faults:
           ctx.user.role === "funcionario"
             ? []
@@ -285,7 +288,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       const [rentals, faults] = await Promise.all([
         dbAll(
           ctx,
-          "rentals?status=eq.Concluído&select=*,start_kiosk:kiosks(*),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))&order=started_at.desc",
+          "rentals?status=eq.Concluído&select=*,start_kiosk:kiosks(*),customer_profile:customer_profiles(id,kind,name,school),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))&order=started_at.desc",
         ),
         dbAll(
           ctx,

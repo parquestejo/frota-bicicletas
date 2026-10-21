@@ -61,7 +61,7 @@ export interface Rental {
   charged_amount: number;
   expected_amount?: number;
   discount_amount?: number;
-  rental_kind?: "normal" | "resident" | "institutional";
+  rental_kind?: "normal" | "resident" | "institutional" | "frequent" | "school";
   rental_period?: "hour" | "day" | null;
   rental_hours?: number | null;
   resident_proof_type?: "AT" | "Dístico de residente" | "Subscrição 120 minutos";
@@ -79,6 +79,49 @@ export interface Rental {
   returned_by_user?: User;
   corrected_at?: string;
   correction_reason?: string;
+  customer_profile_id?: string;
+  deposit_authorization_id?: string;
+  authorization_code?: string;
+  estimated_distance_km?: number;
+  estimated_co2_kg?: number;
+  customer_profile?: CustomerProfile;
+  deposit_authorization?: DepositAuthorization;
+}
+export interface DepositAuthorization {
+  id: string;
+  authorization_code: string;
+  amount: number;
+  authorized_at: string;
+  expires_at: string;
+  status: "active" | "cancelled" | "captured" | "expired";
+}
+export interface CustomerProfile {
+  id: string;
+  kind: "frequent" | "school";
+  name: string;
+  nif: string;
+  masked_nif?: string;
+  school?: string;
+  phone?: string;
+  email?: string;
+  verified_at?: string;
+  verified_by?: string;
+  adult_present_confirmed?: boolean;
+  active_authorization?: DepositAuthorization | null;
+  last_authorization?: DepositAuthorization | null;
+  activity?: { rental_count: number; estimated_distance_km: number; estimated_co2_kg: number };
+  rentals?: CustomerRentalHistory[];
+}
+export interface CustomerRentalHistory {
+  id: string;
+  reference: string;
+  status: "Em aberto" | "Concluído";
+  started_at: string;
+  returned_at?: string;
+  estimated_distance_km?: number;
+  estimated_co2_kg?: number;
+  start_kiosk?: { name: string };
+  items?: { id: string; bike?: { code: string; asset_type: string } }[];
 }
 export interface RentalPeriodUpdate {
   additional_amount?: number;

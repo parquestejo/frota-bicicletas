@@ -178,3 +178,11 @@ Antes de inserir dados reais:
 Peça apoio se surgir um erro vermelho no Supabase, `Build failed` no Cloudflare, a aplicação não conseguir guardar dados, uma chave for divulgada, ou se pretender um domínio próprio, backups automáticos ou alojamento num servidor interno.
 
 Ao pedir ajuda, envie uma captura do erro, mas confirme primeiro que a imagem não mostra nenhuma chave secreta.
+# Atualização 2.3.3 — clientes frequentes, Cartão Escolar, devolução flexível e CO₂
+
+Antes de publicar esta versão, execute no SQL Editor do Supabase o ficheiro:
+
+`supabase/migrations/022_customer_programs_and_co2.sql`
+
+Depois publique novamente a aplicação. A atualização acrescenta perfis permanentes de cliente frequente, Cartão Escolar Municipal, pré-autorizações renováveis válidas por 30 dias, alertas de caducidade, ficha de atividade com histórico, quilómetros e CO₂ estimados, código de autorização obrigatório nos alugueres com caução e devolução em qualquer quiosque.
+

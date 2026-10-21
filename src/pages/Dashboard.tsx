@@ -33,6 +33,7 @@ export function Dashboard({ user }: { user: User }) {
           </div>
         </section>
       )}
+      {!maintenance && data.deposit_alerts?.length > 0 && <section className="card daily-closure-alert pending"><div><h2>Cauções de clientes frequentes</h2><p>Existem cauções terminadas ou que terminam nos próximos 3 dias.</p>{data.deposit_alerts.map((item:any)=>{const expired=new Date(item.expires_at).getTime()<=Date.now();return <div className="row" key={item.id}><span><b>{item.customer_profile?.name||"Cliente"}</b> · {expired?"Terminou":"Termina"} em {new Date(item.expires_at).toLocaleDateString("pt-PT")}</span><Badge>{expired?"Terminada":"A terminar"}</Badge></div>})}</div></section>}
       <div className="metrics">
         {dashboardStatuses.map((s) => {
           const c = data.counts_by_type?.[s] || {

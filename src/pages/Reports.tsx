@@ -21,7 +21,7 @@ export function Reports() {
     r.items.map((i) => [
       r.reference,
       r.customer_ref,
-      r.rental_kind === "institutional" ? "Institucional" : r.rental_kind === "resident" ? "Residente" : "Normal",
+      r.rental_kind === "institutional" ? "Institucional" : r.rental_kind === "resident" ? "Residente" : r.rental_kind === "frequent" ? "Cliente frequente" : r.rental_kind === "school" ? "Cartão Escolar" : "Normal",
       Number(r.charged_amount || 0).toFixed(2),
       Number(r.expected_amount || 0).toFixed(2),
       Number(r.discount_amount || 0).toFixed(2),
@@ -39,6 +39,8 @@ export function Reports() {
       i.anomaly_description || "",
       Number(i.deposit_retained || 0).toFixed(2),
       i.deposit_retention_reason || "",
+      Number(r.estimated_distance_km || 0).toFixed(2),
+      Number(r.estimated_co2_kg || 0).toFixed(3),
     ]),
   );
   const faultRows = faults.map((f) => [
@@ -119,6 +121,8 @@ export function Reports() {
                     "Descrição da anomalia",
                     "Caução retida (€)",
                     "Motivo da retenção",
+                    "Distância estimada (km)",
+                    "CO₂ evitado estimado (kg)",
                   ],
                   rentalRows,
                 )
@@ -144,6 +148,7 @@ export function Reports() {
                   <th>Fim</th>
                   <th>Funcionários</th>
                   <th>Anomalia</th>
+                  <th>CO₂ estimado</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,7 +159,7 @@ export function Reports() {
                         <b>{r.reference}</b>
                       </td>
                       <td>{r.customer_ref}</td>
-                      <td>{r.rental_kind === "institutional" ? `Institucional · ${r.institutional_entity}` : r.rental_kind === "resident" ? "Residente" : "Normal"}</td>
+                      <td>{r.rental_kind === "institutional" ? `Institucional · ${r.institutional_entity}` : r.rental_kind === "resident" ? "Residente" : r.rental_kind === "frequent" ? "Cliente frequente" : r.rental_kind === "school" ? `Cartão Escolar · ${r.customer_profile?.school || "—"}` : "Normal"}</td>
                       <td>{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(r.charged_amount || 0))}</td>
                       <td>{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(r.expected_amount || 0))}</td>
                       <td>{i.bike?.code}</td>
@@ -176,6 +181,7 @@ export function Reports() {
                       <td>
                         {i.anomaly ? i.anomaly_description || "Sim" : "Não"}
                       </td>
+                      <td>{Number(r.estimated_co2_kg || 0).toLocaleString("pt-PT",{maximumFractionDigits:2})} kg</td>
                     </tr>
                   )),
                 )}

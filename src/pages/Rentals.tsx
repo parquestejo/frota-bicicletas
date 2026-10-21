@@ -239,6 +239,7 @@ export function Rentals({ user }: { user: User }) {
     [returnKioskId, setReturnKioskId] = useState(""),
     [retainedDeposits, setRetainedDeposits] = useState<Record<string, string>>({}),
     [retentionReasons, setRetentionReasons] = useState<Record<string, string>>({}),
+    [impact, setImpact] = useState<{distance:number;co2:number}|null>(null),
     [busy, setBusy] = useState(false);
   const { data, error } = useLoad<{
     rentals: Rental[];
@@ -271,10 +272,11 @@ export function Rentals({ user }: { user: User }) {
     if (items.some((item)=>item.deposit_retained>0 && item.deposit_retention_reason.length<5)) return notify("Indique o motivo de cada caução retida.", "error");
     setBusy(true);
     try {
-      await post(`/rentals/${returning.id}/return`, {
+      const result=await post<{remaining:number;estimated_distance_km?:number;estimated_co2_kg?:number}>(`/rentals/${returning.id}/return`, {
         return_kiosk_id: returnKioskId || user.usual_kiosk_id || returning.start_kiosk_id,
         items,
       });
+      if(result.remaining===0&&result.estimated_co2_kg!==undefined) setImpact({distance:Number(result.estimated_distance_km||0),co2:Number(result.estimated_co2_kg||0)});
       setReturning(null);
       setAnomalies({});
       setReturnItemIds([]); setRetainedDeposits({}); setRetentionReasons({});
@@ -303,6 +305,7 @@ export function Rentals({ user }: { user: User }) {
         kiosks={data?.kiosks || []}
         summary={data?.summary}
       />
+      {impact && <section className="card notice" role="status"><div className="row"><div><h2>Obrigado por pedalar connosco!</h2><p>Nesta utilização foram percorridos aproximadamente <b>{impact.distance.toLocaleString("pt-PT",{maximumFractionDigits:1})} km</b> e evitados cerca de <b>{impact.co2.toLocaleString("pt-PT",{maximumFractionDigits:2})} kg de CO₂</b>.</p><small>Estimativa baseada na duração, em 8 km/h de velocidade média e 0,204 kg CO₂ evitado por quilómetro.</small></div><button className="text" onClick={()=>setImpact(null)}>Fechar</button></div></section>}
       <DateRange
         from={dateFrom}
         to={dateTo}
@@ -362,7 +365,8 @@ export function Rentals({ user }: { user: User }) {
                 <Badge>{r.status}</Badge>
               </div>
               <h3>{r.customer_ref}</h3>
-              <p><b>{rentalMoney(r.charged_amount)}</b> · {r.rental_kind === "institutional" ? "Utilização institucional" : r.rental_kind === "resident" ? "Benefício de residente" : "Multibanco"}</p>
+              <p><b>{rentalMoney(r.charged_amount)}</b> · {r.rental_kind === "institutional" ? "Utilização institucional" : r.rental_kind === "resident" ? "Benefício de residente" : r.rental_kind === "frequent" ? "Cliente frequente" : r.rental_kind === "school" ? "Cartão Escolar Municipal" : "Multibanco"}</p>
+              {r.rental_kind !== "institutional" && r.authorization_code && <small>Código de autorização: <b>{r.authorization_code}</b>{r.rental_kind === "frequent" && r.deposit_authorization ? ` · válido até ${new Date(r.deposit_authorization.expires_at).toLocaleDateString("pt-PT")}` : ""}</small>}
               {r.rental_kind !== "institutional" && <small>{r.rental_period === "day" ? "Período: 1 dia" : `Período: ${r.rental_hours || 1} ${(r.rental_hours || 1) === 1 ? "hora" : "horas"}`}</small>}
               {r.expected_amount !== undefined && <small>Valor comercial: {rentalMoney(r.expected_amount)}</small>}
               {r.customer_contact && (
@@ -454,6 +458,7 @@ export function Rentals({ user }: { user: User }) {
               <th>Registado por</th>
               <th>Início</th>
               <th>Fim</th>
+              <th>CO₂ estimado</th>
               {user.role === "admin" && <th>Ação</th>}
             </tr>
           </thead>
@@ -470,6 +475,7 @@ export function Rentals({ user }: { user: User }) {
                   <td>{r.started_by_user?.full_name || "—"}</td>
                   <td>{fmt(r.started_at)}</td>
                   <td>{fmt(r.returned_at)}</td>
+                  <td>{r.estimated_co2_kg!==undefined ? `${Number(r.estimated_co2_kg).toLocaleString("pt-PT",{maximumFractionDigits:2})} kg` : "—"}</td>
                   {user.role === "admin" && <td><AdminRentalCorrection rental={r} bikes={data?.correction_bikes || []} kiosks={data?.kiosks || []} onSaved={() => setRefresh((x)=>x+1)} /></td>}
                 </tr>
               ))}

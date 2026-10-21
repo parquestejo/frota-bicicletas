@@ -4,6 +4,35 @@ import {
 } from "../_shared";
 
 export async function handleRentalRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
+    if (route === "/customer-profiles" && request.method === "GET") {
+      const nif=(new URL(request.url).searchParams.get("nif")||"").replace(/\D/g,"");
+      if(nif.length!==9) return err("Indique um NIF válido.");
+      const profiles=await db(ctx,`customer_profiles?nif=eq.${q(nif)}&active=eq.true&select=*&limit=1`);
+      if(!profiles[0]) return json({profile:null});
+      const auths=profiles[0].kind==="frequent"?await db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(profiles[0].id)}&select=*&order=authorized_at.desc&limit=1`):[];
+      const latest=auths[0]||null,active=latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null;
+      const rentals=await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=200`);
+      const completed=rentals.filter((r:any)=>r.status==="Concluído");
+      const activity={rental_count:completed.length,estimated_distance_km:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_distance_km||0),0),estimated_co2_kg:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_co2_kg||0),0)};
+      return json({profile:{...profiles[0],masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:active,last_authorization:latest,activity,rentals}});
+    }
+    if (route === "/customer-profiles" && request.method === "POST") {
+      const b=await body(request),kind=String(b.kind||""),name=String(b.name||"").trim(),nif=String(b.nif||"").replace(/\D/g,""),school=String(b.school||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase();
+      if(!["frequent","school"].includes(kind)||name.length<2||nif.length!==9) return err("Preencha corretamente o nome, NIF e tipo de registo.");
+      if(kind==="school"&&(!school||b.adult_present_confirmed!==true)) return err("Indique a escola e confirme a presença de um adulto.");
+      const existing=(await db(ctx,`customer_profiles?nif=eq.${q(nif)}&select=*&limit=1`))[0];
+      const renewal=kind==="frequent"&&b.renew_only===true&&existing?.kind==="frequent";
+      if(kind==="frequent"&&(!String(b.authorization_code||"").trim()||(!renewal&&(!phone||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^[0-9+().\s-]{3,50}$/.test(phone)||b.verified!==true)))) return err("Indique e valide presencialmente o contacto, email e código de autorização.");
+      const verifiedFields=kind==="frequent"?{verified_by:ctx.user.id,verified_at:new Date().toISOString()}:{verified_by:null,verified_at:null};
+      const rows=renewal?[existing]:existing?await db(ctx,`customer_profiles?id=eq.${q(existing.id)}`,{method:"PATCH",body:JSON.stringify({kind,name,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,adult_present_confirmed:kind==="school",active:true,updated_at:new Date().toISOString()})}):await db(ctx,"customer_profiles",{method:"POST",body:JSON.stringify({kind,name,nif,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,adult_present_confirmed:kind==="school",created_by:ctx.user.id})});
+      const profile=rows[0]; let activeAuthorization=null;
+      if(kind==="frequent") {
+        await db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(profile.id)}&status=eq.active`,{method:"PATCH",body:JSON.stringify({status:"expired"})});
+        const authRows=await db(ctx,"deposit_authorizations",{method:"POST",body:JSON.stringify({customer_profile_id:profile.id,authorization_code:String(b.authorization_code).trim(),amount:50,authorized_at:new Date().toISOString(),expires_at:new Date(Date.now()+30*86400000).toISOString(),created_by:ctx.user.id})}); activeAuthorization=authRows[0];
+      }
+      await audit(ctx,"criar/atualizar perfil de cliente","cliente",profile.id,null,{kind:profile.kind,school:profile.school});
+      return json({profile:{...profile,masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:activeAuthorization}},201);
+    }
     if (parts[0] === "rentals" && ctx.user.role === "manutencao")
       return err("O perfil de manutenção não tem acesso aos alugueres.", 403);
     if (route === "/rentals" && request.method === "GET") {
@@ -11,7 +40,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         ctx.user.role === "admin" ? "" : `&started_by=eq.${q(ctx.user.id)}`;
       const discrepancyOwner =
         ctx.user.role === "admin" ? "" : `&created_by=eq.${q(ctx.user.id)}`;
-      const rentalSelect = "select=*,start_kiosk:kiosks(*),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
+      const rentalSelect = "select=*,start_kiosk:kiosks(*),customer_profile:customer_profiles(id,kind,name,school),deposit_authorization:deposit_authorizations(id,authorization_code,amount,authorized_at,expires_at,status),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
       const [openRentals, completedRentals, annulledRentals, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices] = await Promise.all([
         db(
           ctx,
@@ -107,13 +136,15 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         return err("Indique um número de contacto válido.");
       if (b.charged_amount === "" || b.charged_amount === null || b.charged_amount === undefined || !Number.isFinite(chargedAmount) || chargedAmount < 0 || chargedAmount > 100000)
         return err("Indique o valor cobrado por Multibanco.");
-      if (!["normal","resident","institutional"].includes(rentalKind) || (rentalKind !== "institutional" && !["hour","day"].includes(rentalPeriod)))
+      if (!["normal","resident","institutional","frequent","school"].includes(rentalKind) || (rentalKind !== "institutional" && !["hour","day"].includes(rentalPeriod)))
         return err("Selecione um tipo e um período de utilização válidos.");
       if (rentalKind !== "institutional" && rentalPeriod === "hour" && (!Number.isSafeInteger(rentalHours) || rentalHours < 1 || rentalHours > 168)) return err("Indique um número de horas entre 1 e 168.");
       if (rentalKind === "resident" && (b.oeiras_move_confirmed !== true || !["AT","Dístico de residente","Subscrição 120 minutos"].includes(String(b.resident_proof_type))))
         return err("Confirme as condições do benefício de residente.");
       if (rentalKind === "institutional" && (!["Parques Tejo","Município de Oeiras"].includes(String(b.institutional_entity)) || !String(b.institutional_person || "").trim()))
         return err("Indique a entidade e o nome de quem levantou o equipamento.");
+      if (rentalKind !== "institutional" && !String(b.authorization_code || "").trim())
+        return err("Indique o código de autorização do talão Multibanco.");
       const rows = await db(ctx, "rpc/start_rental", {
         method: "POST",
         body: JSON.stringify({
@@ -131,6 +162,9 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           p_institutional_entity: b.institutional_entity || null,
           p_institutional_person: String(b.institutional_person || "").trim() || null,
           p_price_override_reason: String(b.price_override_reason || "").trim() || null,
+          p_customer_profile_id: b.customer_profile_id || null,
+          p_deposit_authorization_id: b.deposit_authorization_id || null,
+          p_authorization_code: String(b.authorization_code || "").trim() || null,
         }),
       });
       return json(rows, 201);
@@ -289,12 +323,11 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       const rental = (
         await db(
           ctx,
-          `rentals?id=eq.${parts[1]}&select=id,started_by,start_kiosk_id,rental_kind`,
+          `rentals?id=eq.${parts[1]}&select=id,started_by,start_kiosk_id,rental_kind,started_at`,
         )
       )[0];
       if (!rental) return err("Aluguer não encontrado.", 404);
-      if (ctx.user.role !== "admin" && rental.started_by !== ctx.user.id && rental.rental_kind !== "institutional")
-        return err("Não pode alterar alugueres de outro utilizador.", 403);
+      // A devolução pode ser concluída por qualquer funcionário, permitindo devolver noutro quiosque.
       const b = await body(request);
       if (!b.items?.length) return err("Não existem bicicletas por devolver.");
       const returnKioskId =
@@ -318,6 +351,15 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           p_user_id: ctx.user.id,
         }),
       });
+      if (Number(result?.remaining) === 0) {
+        const rentalItems=await db(ctx,`rental_items?rental_id=eq.${q(parts[1])}&select=bike:bikes(asset_type)`);
+        const bicycleCount=rentalItems.filter((item:any)=>["electric","conventional","child"].includes(item.bike?.asset_type)).length;
+        const durationHours=Math.max(0,(Date.now()-new Date(rental.started_at).getTime())/3600000);
+        const distance=Math.round(durationHours*8*bicycleCount*100)/100;
+        const co2=Math.round(distance*0.204*1000)/1000;
+        await db(ctx,`rentals?id=eq.${q(parts[1])}`,{method:"PATCH",body:JSON.stringify({estimated_distance_km:distance,estimated_co2_kg:co2})});
+        return json({...result,estimated_distance_km:distance,estimated_co2_kg:co2});
+      }
       return json(result);
     }
   return null;
