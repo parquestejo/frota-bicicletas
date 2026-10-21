@@ -111,6 +111,10 @@ export interface CustomerProfile {
   last_authorization?: DepositAuthorization | null;
   activity?: { rental_count: number; estimated_distance_km: number; estimated_co2_kg: number };
   rentals?: CustomerRentalHistory[];
+  history_loaded?: boolean;
+  authorizations?: DepositAuthorization[];
+  active?: boolean;
+  created_at?: string;
 }
 export interface CustomerRentalHistory {
   id: string;

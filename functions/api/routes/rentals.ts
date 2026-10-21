@@ -4,17 +4,60 @@ import {
 } from "../_shared";
 
 export async function handleRentalRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
+    if (route === "/admin/customers" && request.method === "GET") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const profiles=await db(ctx,"customer_profiles?select=*&order=name.asc&limit=1000");
+      if(!profiles.length)return json({customers:[]});
+      const ids=profiles.map((p:any)=>p.id).join(",");
+      const [auths,rentals]=await Promise.all([
+        db(ctx,`deposit_authorizations?customer_profile_id=in.(${ids})&select=*&order=authorized_at.desc`),
+        db(ctx,`rentals?customer_profile_id=in.(${ids})&status=eq.Concluído&select=id,customer_profile_id,estimated_distance_km,estimated_co2_kg&limit=5000`),
+      ]);
+      const customers=profiles.map((profile:any)=>{
+        const profileRentals=rentals.filter((r:any)=>r.customer_profile_id===profile.id);
+        const latest=auths.find((a:any)=>a.customer_profile_id===profile.id)||null;
+        const activeAuthorization=latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null;
+        return {...profile,nif:`*** *** ${String(profile.nif).slice(-3)}`,active_authorization:activeAuthorization,last_authorization:latest,activity:{rental_count:profileRentals.length,estimated_distance_km:profileRentals.reduce((s:number,r:any)=>s+Number(r.estimated_distance_km||0),0),estimated_co2_kg:profileRentals.reduce((s:number,r:any)=>s+Number(r.estimated_co2_kg||0),0)}};
+      });
+      return json({customers});
+    }
+    if (parts[0] === "admin" && parts[1] === "customers" && parts[2] && request.method === "GET") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const profiles=await db(ctx,`customer_profiles?id=eq.${q(parts[2])}&select=*&limit=1`);
+      if(!profiles[0])return err("Cliente não encontrado.",404);
+      const [auths,rentals]=await Promise.all([
+        db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(parts[2])}&select=*&order=authorized_at.desc`),
+        db(ctx,`rentals?customer_profile_id=eq.${q(parts[2])}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=200`),
+      ]);
+      const completed=rentals.filter((r:any)=>r.status==="Concluído"),latest=auths[0]||null;
+      return json({customer:{...profiles[0],active_authorization:latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null,last_authorization:latest,authorizations:auths,rentals,history_loaded:true,activity:{rental_count:completed.length,estimated_distance_km:completed.reduce((s:number,r:any)=>s+Number(r.estimated_distance_km||0),0),estimated_co2_kg:completed.reduce((s:number,r:any)=>s+Number(r.estimated_co2_kg||0),0)}}});
+    }
+    if (parts[0] === "admin" && parts[1] === "customers" && parts[2] && request.method === "PATCH") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const b=await body(request),name=String(b.name||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase(),school=String(b.school||"").trim();
+      const current=(await db(ctx,`customer_profiles?id=eq.${q(parts[2])}&select=*&limit=1`))[0];
+      if(!current)return err("Cliente não encontrado.",404);
+      if(name.length<2)return err("Indique o nome do cliente.");
+      if(current.kind==="frequent"&&(!phone||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return err("Indique um contacto e um email válidos.");
+      if(current.kind==="school"&&!school)return err("Indique a escola.");
+      const rows=await db(ctx,`customer_profiles?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify({name,phone:current.kind==="frequent"?phone:null,email:current.kind==="frequent"?email:null,school:current.kind==="school"?school:null,active:b.active===true,updated_at:new Date().toISOString()})});
+      await audit(ctx,"editar perfil de cliente","cliente",parts[2],current,rows[0]);
+      return json({customer:rows[0]});
+    }
     if (route === "/customer-profiles" && request.method === "GET") {
-      const nif=(new URL(request.url).searchParams.get("nif")||"").replace(/\D/g,"");
+      const searchParams=new URL(request.url).searchParams;
+      const nif=(searchParams.get("nif")||"").replace(/\D/g,"");
+      const includeHistory=searchParams.get("history")==="1";
       if(nif.length!==9) return err("Indique um NIF válido.");
       const profiles=await db(ctx,`customer_profiles?nif=eq.${q(nif)}&active=eq.true&select=*&limit=1`);
       if(!profiles[0]) return json({profile:null});
       const auths=profiles[0].kind==="frequent"?await db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(profiles[0].id)}&select=*&order=authorized_at.desc&limit=1`):[];
       const latest=auths[0]||null,active=latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null;
-      const rentals=await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=200`);
-      const completed=rentals.filter((r:any)=>r.status==="Concluído");
+      const activityRows=await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=eq.Concluído&select=id,estimated_distance_km,estimated_co2_kg&limit=1000`);
+      const completed=activityRows;
       const activity={rental_count:completed.length,estimated_distance_km:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_distance_km||0),0),estimated_co2_kg:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_co2_kg||0),0)};
-      return json({profile:{...profiles[0],masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:active,last_authorization:latest,activity,rentals}});
+      const rentals=includeHistory?await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=100`):undefined;
+      return json({profile:{...profiles[0],masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:active,last_authorization:latest,activity,rentals,history_loaded:includeHistory}});
     }
     if (route === "/customer-profiles" && request.method === "POST") {
       const b=await body(request),kind=String(b.kind||""),name=String(b.name||"").trim(),nif=String(b.nif||"").replace(/\D/g,""),school=String(b.school||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase();
