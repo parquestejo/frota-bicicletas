@@ -9,7 +9,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
       const url=new URL(request.url),kind=url.searchParams.get("kind"),search=String(url.searchParams.get("q")||"").trim().replace(/[%*_(),.]/g,"").slice(0,80),{page,pageSize,from,to}=pagination(request,25,100);
       if(kind&&!['frequent','school'].includes(kind))return err("Tipo de cliente inválido.");
-      const filters=`${kind?`&kind=eq.${q(kind)}`:""}${search?`&or=(name.ilike.*${q(search)}*,nif.ilike.*${q(search)}*,school.ilike.*${q(search)}*,email.ilike.*${q(search)}*,phone.ilike.*${q(search)}*)`:""}`;
+      const filters=`${kind?`&kind=eq.${q(kind)}`:""}${search?`&or=(name.ilike.*${q(search)}*,nif.ilike.*${q(search)}*,membership_code.ilike.*${q(search)}*,school.ilike.*${q(search)}*,email.ilike.*${q(search)}*,phone.ilike.*${q(search)}*)`:""}`;
       const [profiles,total]=await Promise.all([
         db(ctx,`customer_profiles?select=*&order=name.asc${filters}`,{headers:{Range:`${from}-${to}`}}),
         dbCount(ctx,`customer_profiles?select=id${filters}`),
@@ -35,60 +35,109 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
       const profiles=await db(ctx,`customer_profiles?id=eq.${q(parts[2])}&select=*&limit=1`);
       if(!profiles[0])return err("Cliente não encontrado.",404);
-      const [auths,rentals]=await Promise.all([
+      const [auths,rentals,redemptions]=await Promise.all([
         db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(parts[2])}&select=*&order=authorized_at.desc`),
         db(ctx,`rentals?customer_profile_id=eq.${q(parts[2])}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=200`),
+        db(ctx,`gamification_redemptions?customer_profile_id=eq.${q(parts[2])}&select=*,reward:gamification_rewards(name)&order=awarded_at.desc`),
       ]);
       const completed=rentals.filter((r:any)=>r.status==="Concluído"),latest=auths[0]||null;
-      return json({customer:{...profiles[0],active_authorization:latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null,last_authorization:latest,authorizations:auths,rentals,history_loaded:true,activity:{rental_count:completed.length,estimated_distance_km:completed.reduce((s:number,r:any)=>s+Number(r.estimated_distance_km||0),0),estimated_co2_kg:completed.reduce((s:number,r:any)=>s+Number(r.estimated_co2_kg||0),0)}}});
+      const days=new Map<string,{rentals:number;km:number}>();for(const r of completed){const key=String(r.returned_at||r.started_at).slice(0,10),day=days.get(key)||{rentals:0,km:0};day.rentals++;day.km+=Number(r.estimated_distance_km||0);days.set(key,day)}
+      const earned=[...days.values()].reduce((sum,day)=>sum+10+Math.min(30,Math.floor(day.km)),0),spent=redemptions.reduce((sum:number,row:any)=>sum+Number(row.points_spent||0),0);
+      const points={earned,spent,available:Math.max(0,earned-spent),level:earned>=750?"Embaixador":earned>=300?"Explorador":earned>=100?"Pedalante":"Iniciante"};
+      return json({customer:{...profiles[0],active_authorization:latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null,last_authorization:latest,authorizations:auths,rentals,redemptions,points,history_loaded:true,activity:{rental_count:completed.length,estimated_distance_km:completed.reduce((s:number,r:any)=>s+Number(r.estimated_distance_km||0),0),estimated_co2_kg:completed.reduce((s:number,r:any)=>s+Number(r.estimated_co2_kg||0),0)}}});
     }
     if (parts[0] === "admin" && parts[1] === "customers" && parts[2] && request.method === "PATCH") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
-      const b=await body(request),name=String(b.name||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase(),school=String(b.school||"").trim();
+      const b=await body(request),name=String(b.name||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase(),school=String(b.school||"").trim(),gamification=!!b.gamification_opt_in,publicRanking=gamification&&!!b.public_ranking_opt_in;
       const current=(await db(ctx,`customer_profiles?id=eq.${q(parts[2])}&select=*&limit=1`))[0];
       if(!current)return err("Cliente não encontrado.",404);
       if(name.length<2)return err("Indique o nome do cliente.");
       if(current.kind==="frequent"&&(!phone||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return err("Indique um contacto e um email válidos.");
       if(current.kind==="school"&&!SCHOOLS.has(school))return err("Selecione uma escola da lista.");
-      const rows=await db(ctx,`customer_profiles?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify({name,phone:current.kind==="frequent"?phone:null,email:current.kind==="frequent"?email:null,school:current.kind==="school"?school:null,active:b.active===true,updated_at:new Date().toISOString()})});
+      const rows=await db(ctx,`customer_profiles?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify({name,phone:current.kind==="frequent"?phone:null,email:current.kind==="frequent"?email:null,school:current.kind==="school"?school:null,active:b.active===true,gamification_opt_in:gamification,public_ranking_opt_in:publicRanking,gamification_consent_at:gamification?(current.gamification_consent_at||new Date().toISOString()):null,gamification_consent_by:gamification?(current.gamification_consent_by||ctx.user.id):null,updated_at:new Date().toISOString()})});
       await audit(ctx,"editar perfil de cliente","cliente",parts[2],current,rows[0]);
       return json({customer:rows[0]});
     }
     if (route === "/customer-profiles" && request.method === "GET") {
       if (ctx.user.role === "manutencao") return err("O perfil de manutenção não tem acesso aos clientes.", 403);
       const searchParams=new URL(request.url).searchParams;
-      const nif=(searchParams.get("nif")||"").replace(/\D/g,"");
+      const rawLookup=String(searchParams.get("lookup")||searchParams.get("nif")||"").trim().toUpperCase(),nif=rawLookup.replace(/\D/g,"");
       const includeHistory=searchParams.get("history")==="1";
-      if(nif.length!==9) return err("Indique um NIF válido.");
-      const profiles=await db(ctx,`customer_profiles?nif=eq.${q(nif)}&active=eq.true&select=*&limit=1`);
+      if(nif.length!==9&&!/^MOVE-[A-F0-9]{8}$/.test(rawLookup)) return err("Indique um NIF ou número de cliente válido.");
+      const profiles=await db(ctx,`customer_profiles?${nif.length===9?`nif=eq.${q(nif)}`:`membership_code=eq.${q(rawLookup)}`}&active=eq.true&select=*&limit=1`);
       if(!profiles[0]) return json({profile:null});
       const auths=profiles[0].kind==="frequent"?await db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(profiles[0].id)}&select=*&order=authorized_at.desc&limit=1`):[];
       const latest=auths[0]||null,active=latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null;
-      const activityRows=await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=eq.Concluído&select=id,estimated_distance_km,estimated_co2_kg&limit=1000`);
+      const [activityRows,redemptions]=await Promise.all([
+        db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=eq.Concluído&select=id,returned_at,estimated_distance_km,estimated_co2_kg&limit=1000`),
+        profiles[0].gamification_opt_in?db(ctx,`gamification_redemptions?customer_profile_id=eq.${q(profiles[0].id)}&select=points_spent`):Promise.resolve([]),
+      ]);
       const completed=activityRows;
       const activity={rental_count:completed.length,estimated_distance_km:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_distance_km||0),0),estimated_co2_kg:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_co2_kg||0),0)};
       const rentals=includeHistory?await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=100`):undefined;
-      return json({profile:{...profiles[0],masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:active,last_authorization:latest,activity,rentals,history_loaded:includeHistory}});
+      const pointDays=new Map<string,number>();for(const row of completed){const key=String(row.returned_at||"").slice(0,10);pointDays.set(key,(pointDays.get(key)||0)+Number(row.estimated_distance_km||0))}const earned=[...pointDays.values()].reduce((sum,km)=>sum+10+Math.min(30,Math.floor(km)),0),spent=redemptions.reduce((sum:number,row:any)=>sum+Number(row.points_spent||0),0),points={earned,spent,available:Math.max(0,earned-spent),level:earned>=750?"Embaixador":earned>=300?"Explorador":earned>=100?"Pedalante":"Iniciante"};
+      return json({profile:{...profiles[0],masked_nif:`*** *** ${String(profiles[0].nif).slice(-3)}`,nif:undefined,active_authorization:active,last_authorization:latest,activity,points,rentals,history_loaded:includeHistory}});
     }
     if (route === "/customer-profiles" && request.method === "POST") {
       if (ctx.user.role === "manutencao") return err("O perfil de manutenção não tem acesso aos clientes.", 403);
       const b=await body(request),kind=String(b.kind||""),name=String(b.name||"").trim(),nif=String(b.nif||"").replace(/\D/g,""),school=String(b.school||"").trim(),phone=String(b.phone||"").trim(),email=String(b.email||"").trim().toLowerCase();
-      if(!["frequent","school"].includes(kind)||name.length<2||nif.length!==9) return err("Preencha corretamente o nome, NIF e tipo de registo.");
+      const renewal=kind==="frequent"&&b.renew_only===true&&!!b.profile_id;
+      if(!["frequent","school"].includes(kind)||name.length<2||(!renewal&&nif.length!==9)) return err("Preencha corretamente o nome, NIF e tipo de registo.");
       if(kind==="school"&&(!SCHOOLS.has(school)||b.adult_present_confirmed!==true)) return err("Selecione uma escola da lista e confirme a presença de um adulto.");
-      const existing=(await db(ctx,`customer_profiles?nif=eq.${q(nif)}&select=*&limit=1`))[0];
+      const existing=(await db(ctx,`customer_profiles?${renewal?`id=eq.${q(String(b.profile_id))}`:`nif=eq.${q(nif)}`}&select=*&limit=1`))[0];
       if(existing&&existing.kind!==kind)return err("Este NIF já está associado a outro tipo de registo.",409);
-      const renewal=kind==="frequent"&&b.renew_only===true&&existing?.kind==="frequent";
+      if(renewal&&existing?.kind!=="frequent")return err("Cliente frequente não encontrado.",404);
       if(existing&&!renewal&&ctx.user.role!=="admin")return err("A alteração de um registo existente está reservada ao administrador.",403);
       if(kind==="frequent"&&(!String(b.authorization_code||"").trim()||(!renewal&&(!phone||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^[0-9+().\s-]{3,50}$/.test(phone)||b.verified!==true)))) return err("Indique e valide presencialmente o contacto, email e código de autorização.");
       const verifiedFields=kind==="frequent"?{verified_by:ctx.user.id,verified_at:new Date().toISOString()}:{verified_by:null,verified_at:null};
-      const rows=renewal?[existing]:existing?await db(ctx,`customer_profiles?id=eq.${q(existing.id)}`,{method:"PATCH",body:JSON.stringify({kind,name,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,adult_present_confirmed:kind==="school",active:true,updated_at:new Date().toISOString()})}):await db(ctx,"customer_profiles",{method:"POST",body:JSON.stringify({kind,name,nif,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,adult_present_confirmed:kind==="school",created_by:ctx.user.id})});
+      const consent=!!b.gamification_opt_in,consentFields={gamification_opt_in:consent,public_ranking_opt_in:consent&&!!b.public_ranking_opt_in,gamification_consent_at:consent?new Date().toISOString():null,gamification_consent_by:consent?ctx.user.id:null};
+      const rows=renewal?[existing]:existing?await db(ctx,`customer_profiles?id=eq.${q(existing.id)}`,{method:"PATCH",body:JSON.stringify({kind,name,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,...consentFields,adult_present_confirmed:kind==="school",active:true,updated_at:new Date().toISOString()})}):await db(ctx,"customer_profiles",{method:"POST",body:JSON.stringify({kind,name,nif,school:kind==="school"?school:null,phone:kind==="frequent"?phone:null,email:kind==="frequent"?email:null,...verifiedFields,...consentFields,adult_present_confirmed:kind==="school",created_by:ctx.user.id})});
       const profile=rows[0]; let activeAuthorization=null;
       if(kind==="frequent") {
         await db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(profile.id)}&status=eq.active`,{method:"PATCH",body:JSON.stringify({status:"expired"})});
         const authRows=await db(ctx,"deposit_authorizations",{method:"POST",body:JSON.stringify({customer_profile_id:profile.id,authorization_code:String(b.authorization_code).trim(),amount:50,authorized_at:new Date().toISOString(),expires_at:new Date(Date.now()+30*86400000).toISOString(),created_by:ctx.user.id})}); activeAuthorization=authRows[0];
       }
       await audit(ctx,"criar/atualizar perfil de cliente","cliente",profile.id,existing?{kind:existing.kind,active:existing.active,school:existing.school}:null,{kind:profile.kind,active:profile.active,school:profile.school},existing?"Dados do perfil atualizados ou caução renovada":"Novo perfil criado");
-      return json({profile:{...profile,masked_nif:`*** *** ${nif.slice(-3)}`,nif:undefined,active_authorization:activeAuthorization}},201);
+      return json({profile:{...profile,masked_nif:`*** *** ${String(profile.nif).slice(-3)}`,nif:undefined,active_authorization:activeAuthorization}},201);
+    }
+    if (route === "/admin/gamification" && request.method === "GET") {
+      if (!allow(ctx,"admin")) return err("Acesso reservado a administradores.",403);
+      const [dashboard,campaigns,rewards,redemptions]=await Promise.all([
+        db(ctx,"rpc/gamification_dashboard",{method:"POST",body:"{}"}),
+        db(ctx,"gamification_campaigns?select=*&order=starts_on.desc"),
+        db(ctx,"gamification_rewards?select=*,campaign:gamification_campaigns(name)&order=created_at.desc"),
+        db(ctx,"gamification_redemptions?select=*,customer:customer_profiles(name,membership_code),reward:gamification_rewards(name)&order=awarded_at.desc&limit=100"),
+      ]);
+      return json({dashboard,campaigns,rewards,redemptions});
+    }
+    if (route === "/admin/gamification/campaigns" && request.method === "POST") {
+      if (!allow(ctx,"admin")) return err("Acesso reservado a administradores.",403);
+      const b=await body(request),name=String(b.name||"").trim(),description=String(b.description||"").trim(),audience=String(b.audience||"all"),starts=String(b.starts_on||""),ends=String(b.ends_on||"");
+      if(name.length<3||!["all","frequent","school"].includes(audience)||!/^\d{4}-\d{2}-\d{2}$/.test(starts)||!/^\d{4}-\d{2}-\d{2}$/.test(ends)||ends<starts)return err("Preencha corretamente a campanha.");
+      const rows=await db(ctx,"gamification_campaigns",{method:"POST",body:JSON.stringify({name,description,audience,starts_on:starts,ends_on:ends,created_by:ctx.user.id})});await audit(ctx,"criar","campanha",rows[0].id,null,rows[0]);return json(rows[0],201);
+    }
+    if (route === "/admin/gamification/rewards" && request.method === "POST") {
+      if (!allow(ctx,"admin")) return err("Acesso reservado a administradores.",403);
+      const b=await body(request),name=String(b.name||"").trim(),cost=Number(b.points_cost),stock=b.stock===""||b.stock==null?null:Number(b.stock);
+      if(name.length<2||!Number.isInteger(cost)||cost<0||(stock!==null&&(!Number.isInteger(stock)||stock<0)))return err("Preencha corretamente o prémio.");
+      const rows=await db(ctx,"gamification_rewards",{method:"POST",body:JSON.stringify({campaign_id:b.campaign_id||null,name,points_cost:cost,stock})});await audit(ctx,"criar","prémio",rows[0].id,null,rows[0]);return json(rows[0],201);
+    }
+    if (parts[0]==="admin"&&parts[1]==="gamification"&&["campaigns","rewards"].includes(parts[2])&&parts[3]&&request.method==="PATCH"){
+      if(!allow(ctx,"admin"))return err("Acesso reservado a administradores.",403);
+      const table=parts[2]==="campaigns"?"gamification_campaigns":"gamification_rewards",current=(await db(ctx,`${table}?id=eq.${q(parts[3])}&select=*&limit=1`))[0];
+      if(!current)return err("Registo não encontrado.",404);
+      const rows=await db(ctx,`${table}?id=eq.${q(parts[3])}`,{method:"PATCH",body:JSON.stringify({active:!current.active})});
+      await audit(ctx,current.active?"desativar":"ativar",parts[2]==="campaigns"?"campanha":"prémio",parts[3],current,rows[0]);return json(rows[0]);
+    }
+    if (route === "/admin/gamification/redemptions" && request.method === "POST") {
+      if (!allow(ctx,"admin")) return err("Acesso reservado a administradores.",403);
+      const b=await body(request),dashboard=await db(ctx,"rpc/gamification_dashboard",{method:"POST",body:"{}"}),customer=(dashboard.customers||[]).find((x:any)=>x.id===b.customer_profile_id),reward=(await db(ctx,`gamification_rewards?id=eq.${q(String(b.reward_id||""))}&active=eq.true&select=*&limit=1`))[0];
+      if(!customer||!reward)return err("Cliente ou prémio inválido.");
+      if(Number(customer.available_points)<Number(reward.points_cost))return err("O cliente não tem pontos suficientes.",409);
+      if(reward.stock!==null&&Number(reward.stock)<=0)return err("Este prémio já não tem stock.",409);
+      const rows=await db(ctx,"gamification_redemptions",{method:"POST",body:JSON.stringify({customer_profile_id:customer.id,reward_id:reward.id,points_spent:reward.points_cost,awarded_by:ctx.user.id,note:String(b.note||"").trim()||null})});
+      if(reward.stock!==null)await db(ctx,`gamification_rewards?id=eq.${q(reward.id)}`,{method:"PATCH",body:JSON.stringify({stock:Number(reward.stock)-1})});
+      await audit(ctx,"atribuir","prémio",rows[0].id,null,{customer_profile_id:customer.id,reward_id:reward.id,points_spent:reward.points_cost});return json(rows[0],201);
     }
     if (parts[0] === "rentals" && ctx.user.role === "manutencao")
       return err("O perfil de manutenção não tem acesso aos alugueres.", 403);

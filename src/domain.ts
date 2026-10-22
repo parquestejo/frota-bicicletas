@@ -18,5 +18,7 @@ export function estimateImpact(hours:number,bicycles:number){
   const distance=Math.round(Math.max(0,hours)*8*Math.max(0,Math.floor(bicycles))*100)/100;
   return{distance,co2:Math.round(distance*0.204*1000)/1000};
 }
+export function gamificationDayPoints(distanceKm:number){return 10+Math.min(30,Math.max(0,Math.floor(Number(distanceKm)||0)))}
+export function gamificationLevel(points:number){const value=Math.max(0,Number(points)||0);return value>=750?"Embaixador":value>=300?"Explorador":value>=100?"Pedalante":"Iniciante"}
 export function closeFault(b:SimBike,status:'Disponível'|'Indisponível'|'Em manutenção'){return{...b,status}}
 export function audit(action:string,userId:string,entity:string){return{action,userId,entity,at:new Date().toISOString()}}

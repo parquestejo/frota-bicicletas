@@ -41,7 +41,7 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `026_operational_stability.sql`.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `027_operations_and_gamification.sql`.
 6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
@@ -209,4 +209,12 @@ Depois de instalar a versão 2.5.2, execute uma única vez:
 `supabase/migrations/026_operational_stability.sql`
 
 Esta migração reserva a devolução parcial às utilizações institucionais e acrescenta índices para os históricos paginados. Depois de obter a mensagem de sucesso, publique novamente a aplicação.
+
+# Atualização 2.6.0 — controlo operacional e programa de pontos
+
+Depois de instalar a versão 2.6.0, execute uma única vez:
+
+`supabase/migrations/027_operations_and_gamification.sql`
+
+A migração cria os números MOVE dos clientes já existentes, as tabelas de campanhas e prémios, o histórico técnico de 30 dias e os diagnósticos operacionais. Os clientes existentes não são inscritos automaticamente no programa de pontos: a adesão tem de ser confirmada individualmente na respetiva ficha.
 

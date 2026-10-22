@@ -26,6 +26,7 @@ const DailyClosures = lazy(() => import("./DailyClosures").then((m) => ({ defaul
 const EmailSettings = lazy(() => import("./EmailSettings").then((m) => ({ default: m.EmailSettings })));
 const Catalog = lazy(() => import("./Catalog").then((m) => ({ default: m.Catalog })));
 const Customers = lazy(() => import("./Customers").then((m) => ({ default: m.Customers })));
+const Operations = lazy(() => import("./Operations").then((m) => ({ default: m.Operations })));
 
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [username, setUsername] = useState("");
@@ -206,6 +207,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
       ["/clientes", "Clientes"],
       ["/catalogo", "Catálogo e preços"],
       ["/emails", "Emails automáticos"],
+      ["/controlo", "Controlo operacional"],
     );
   return (
     <div className="shell">
@@ -311,6 +313,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
           />
           <Route path="/clientes" element={user.role === "admin" ? <Customers /> : <Navigate to="/" />} />
           <Route path="/emails" element={user.role === "admin" ? <EmailSettings /> : <Navigate to="/" />} />
+          <Route path="/controlo" element={user.role === "admin" ? <Operations /> : <Navigate to="/" />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         </Suspense>

@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {durationPrice,estimateImpact,returnSelectionAllowed} from "../src/domain";
+import {durationPrice,estimateImpact,gamificationDayPoints,gamificationLevel,returnSelectionAllowed} from "../src/domain";
 
 describe("regras operacionais",()=>{
   it("exige a devolução integral nos alugueres normais",()=>{
@@ -18,5 +18,14 @@ describe("regras operacionais",()=>{
   });
   it("calcula distância e CO2 de forma determinística",()=>{
     expect(estimateImpact(2,2)).toEqual({distance:32,co2:6.528});
+  });
+  it("limita os pontos de distância por dia",()=>{
+    expect(gamificationDayPoints(8.9)).toBe(18);
+    expect(gamificationDayPoints(200)).toBe(40);
+  });
+  it("atribui níveis sem descontar prémios",()=>{
+    expect(gamificationLevel(99)).toBe("Iniciante");
+    expect(gamificationLevel(100)).toBe("Pedalante");
+    expect(gamificationLevel(750)).toBe("Embaixador");
   });
 });

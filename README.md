@@ -1,8 +1,17 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.5.2
+## Versão 2.6.0
 
-Esta versão melhora a estabilidade e a velocidade em bases de dados com mais histórico: as listas de alugueres, clientes, atividade e relatórios são paginadas no servidor; o painel administrativo carrega os indicadores de gestão depois dos dados operacionais; e cada resposta da API inclui métricas de tempo. A devolução parcial fica reservada às utilizações institucionais, com validação simultânea na interface e na base de dados.
+Esta versão reúne o controlo operacional da 2.5.3 e o programa de pontos da 2.6. Mantém as otimizações da 2.5.2 e acrescenta diagnóstico de incongruências, histórico das tarefas automáticas, repetição de emails falhados, monitorização de desempenho, número MOVE para clientes, consentimentos, rankings internos, campanhas e prémios.
+
+- Novo menu **Controlo operacional** para alugueres anormalmente longos, estados incompatíveis, fechos em falta, cauções a terminar e quiosques sem bicicletas disponíveis.
+- Histórico da execução automática dos emails e possibilidade de recolocar um envio falhado na fila.
+- Tempos médios e máximos da API, número de consultas e erros por rota, sem guardar parâmetros nem dados de clientes; conservação limitada a 30 dias.
+- Número de cliente no formato `MOVE-XXXXXXXX`, pesquisável no início do aluguer em alternativa ao NIF.
+- Adesão opcional e registada ao programa de pontos e autorização separada para rankings divulgados.
+- Pontos calculados a partir dos alugueres: 10 pontos por dia utilizado e 1 ponto por quilómetro, com máximo de 30 pontos de distância por dia.
+- Níveis Iniciante, Pedalante, Explorador e Embaixador; ranking de escolas exclusivamente agregado.
+- Criação e ativação/desativação de campanhas e prémios, controlo de stock e registo das atribuições.
 
 - Paginação e pesquisa no servidor, evitando transferir todo o histórico para o navegador.
 - Exportação dos relatórios continua a abranger todo o período escolhido, mesmo quando a tabela está paginada.
@@ -148,6 +157,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/024_security_and_integrity.sql`
    - `supabase/migrations/025_performance_indexes.sql`
    - `supabase/migrations/026_operational_stability.sql`
+   - `supabase/migrations/027_operations_and_gamification.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -161,7 +171,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Execute, por ordem, apenas as migrações que ainda não tenham sido aplicadas. Para atualizar da versão 2.5.1 para a 2.5.2, execute `supabase/migrations/026_operational_stability.sql`. Se estiver numa versão anterior, execute primeiro as migrações em falta pela ordem numérica. Não volte a executar o `seed`.
+Execute, por ordem, apenas as migrações que ainda não tenham sido aplicadas. Para atualizar da versão 2.5.2 para a 2.6.0, execute `supabase/migrations/027_operations_and_gamification.sql`. Se estiver numa versão anterior, execute primeiro as migrações em falta pela ordem numérica. Não volte a executar o `seed`.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 

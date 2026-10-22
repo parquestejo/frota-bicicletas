@@ -114,6 +114,12 @@ export interface CustomerProfile {
   rentals?: CustomerRentalHistory[];
   history_loaded?: boolean;
   authorizations?: DepositAuthorization[];
+  membership_code?: string;
+  gamification_opt_in?: boolean;
+  public_ranking_opt_in?: boolean;
+  gamification_consent_at?: string;
+  points?: { earned: number; spent: number; available: number; level: string };
+  redemptions?: { id: string; points_spent: number; awarded_at: string; reward?: { name: string } }[];
   active?: boolean;
   created_at?: string;
 }

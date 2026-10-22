@@ -26,14 +26,27 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204, headers: securityHeaders });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "2.5.2",
+        version: "2.6.0",
         routing: "array-safe",
         database_errors: "detailed",
       });
     if (route === "/jobs/email" && request.method === "POST") {
       if (!env.JOB_SECRET || request.headers.get("Authorization") !== `Bearer ${env.JOB_SECRET}`)
         return err("Tarefa automática não autorizada.", 403);
-      return json(await runScheduledEmailJobs(ctx));
+      const startedAt=new Date().toISOString();
+      try{
+        const result=await runScheduledEmailJobs(ctx);
+        await db(ctx,"automated_job_runs",{method:"POST",body:JSON.stringify({job_name:"email",status:"success",result,started_at:startedAt})});
+        const retention=new Date(Date.now()-30*86400000).toISOString();
+        await Promise.all([
+          db(ctx,`api_performance_logs?created_at=lt.${q(retention)}`,{method:"DELETE"}),
+          db(ctx,`automated_job_runs?finished_at=lt.${q(retention)}`,{method:"DELETE"}),
+        ]);
+        return json(result);
+      }catch(error){
+        await db(ctx,"automated_job_runs",{method:"POST",body:JSON.stringify({job_name:"email",status:"failed",error_message:String((error as Error).message).slice(0,300),started_at:startedAt})}).catch(()=>null);
+        throw error;
+      }
     }
     if (route === "/bootstrap" && request.method === "POST") {
       if (
@@ -165,6 +178,8 @@ export const onRequest: PagesFunction<Env> = async ({
         headers.set("X-Response-Time",`${total}ms`);
         headers.set("X-Database-Calls",String(ctx.dbCalls||0));
         if(total>1000)console.warn("slow_request",{route,method:request.method,total,db_ms:ctx.dbDurationMs,db_calls:ctx.dbCalls});
+        const metricCtx:Ctx={env};
+        waitUntil(db(metricCtx,"api_performance_logs",{method:"POST",body:JSON.stringify({route,method:request.method,status_code:response.status,duration_ms:total,db_duration_ms:Math.round(ctx.dbDurationMs||0),db_calls:ctx.dbCalls||0})}).catch((error)=>console.error("performance_log",error)));
         return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
       }
     }
