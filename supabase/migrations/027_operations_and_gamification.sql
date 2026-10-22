@@ -1,11 +1,23 @@
 begin;
 
--- Identificação permanente e consentimentos dos programas de clientes.
+-- Identificação permanente e participação automática no programa de pontos.
 alter table customer_profiles add column if not exists membership_code text;
-alter table customer_profiles add column if not exists gamification_opt_in boolean not null default false;
+alter table customer_profiles add column if not exists gamification_opt_in boolean not null default true;
 alter table customer_profiles add column if not exists public_ranking_opt_in boolean not null default false;
 alter table customer_profiles add column if not exists gamification_consent_at timestamptz;
 alter table customer_profiles add column if not exists gamification_consent_by uuid references users(id) on delete set null;
+alter table customer_profiles alter column gamification_opt_in set default true;
+
+-- Todos os registos especiais participam automaticamente. Não existe ranking público nominal.
+update customer_profiles
+set gamification_opt_in=true,
+    public_ranking_opt_in=false,
+    gamification_consent_at=null,
+    gamification_consent_by=null
+where gamification_opt_in is distinct from true
+   or public_ranking_opt_in is distinct from false
+   or gamification_consent_at is not null
+   or gamification_consent_by is not null;
 
 update customer_profiles
 set membership_code='MOVE-'||upper(substr(replace(id::text,'-',''),1,8))
@@ -138,7 +150,7 @@ with rental_days as (
     coalesce(sum(d.rental_count),0)::integer rental_count,round(coalesce(sum(d.km),0),2) km,round(coalesce(sum(d.co2),0),3) co2,
     coalesce(sum(10+least(30,floor(d.km)::integer)),0)::integer earned_points
   from customer_profiles p left join rental_days d on d.customer_profile_id=p.id
-  where p.active and p.gamification_opt_in
+  where p.active
   group by p.id
 ), spent as (
   select customer_profile_id,coalesce(sum(points_spent),0)::integer points_spent from gamification_redemptions group by customer_profile_id

@@ -41,7 +41,7 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `027_operations_and_gamification.sql`.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `028_automatic_gamification.sql`.
 6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
@@ -216,5 +216,11 @@ Depois de instalar a versão 2.6.0, execute uma única vez:
 
 `supabase/migrations/027_operations_and_gamification.sql`
 
-A migração cria os números MOVE dos clientes já existentes, as tabelas de campanhas e prémios, o histórico técnico de 30 dias e os diagnósticos operacionais. Os clientes existentes não são inscritos automaticamente no programa de pontos: a adesão tem de ser confirmada individualmente na respetiva ficha.
+A migração cria os números MOVE dos clientes já existentes, inclui automaticamente todos os registos especiais no programa de pontos, cria as tabelas de campanhas e prémios, o histórico técnico de 30 dias e os diagnósticos operacionais. O ranking dos alunos é sempre agregado por escola; não existe divulgação nominal dos alunos.
+
+Se já executou anteriormente a migração `027`, execute também uma única vez:
+
+`supabase/migrations/028_automatic_gamification.sql`
+
+Esta correção retira a adesão opcional e inclui automaticamente no programa todos os clientes frequentes e utilizadores do Cartão Escolar, incluindo os registos já existentes.
 

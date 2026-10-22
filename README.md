@@ -2,13 +2,14 @@
 
 ## Versão 2.6.0
 
-Esta versão reúne o controlo operacional da 2.5.3 e o programa de pontos da 2.6. Mantém as otimizações da 2.5.2 e acrescenta diagnóstico de incongruências, histórico das tarefas automáticas, repetição de emails falhados, monitorização de desempenho, número MOVE para clientes, consentimentos, rankings internos, campanhas e prémios.
+Esta versão reúne o controlo operacional da 2.5.3 e o programa de pontos da 2.6. Mantém as otimizações da 2.5.2 e acrescenta diagnóstico de incongruências, histórico das tarefas automáticas, repetição de emails falhados, monitorização de desempenho, número MOVE para clientes, rankings internos, campanhas e prémios.
 
 - Novo menu **Controlo operacional** para alugueres anormalmente longos, estados incompatíveis, fechos em falta, cauções a terminar e quiosques sem bicicletas disponíveis.
 - Histórico da execução automática dos emails e possibilidade de recolocar um envio falhado na fila.
 - Tempos médios e máximos da API, número de consultas e erros por rota, sem guardar parâmetros nem dados de clientes; conservação limitada a 30 dias.
 - Número de cliente no formato `MOVE-XXXXXXXX`, pesquisável no início do aluguer em alternativa ao NIF.
-- Adesão opcional e registada ao programa de pontos e autorização separada para rankings divulgados.
+- Participação automática dos clientes frequentes e utilizadores do Cartão Escolar no programa de pontos.
+- Rankings internos nominais para clientes frequentes e resultados dos alunos apenas agregados por escola.
 - Pontos calculados a partir dos alugueres: 10 pontos por dia utilizado e 1 ponto por quilómetro, com máximo de 30 pontos de distância por dia.
 - Níveis Iniciante, Pedalante, Explorador e Embaixador; ranking de escolas exclusivamente agregado.
 - Criação e ativação/desativação de campanhas e prémios, controlo de stock e registo das atribuições.
