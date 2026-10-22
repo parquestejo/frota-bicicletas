@@ -11,7 +11,7 @@ export interface Env {
   APP_URL?: string;
   JOB_SECRET?: string;
 }
-export type Ctx = { env: Env; user?: any; session?: any; csrf?: string };
+export type Ctx = { env: Env; user?: any; session?: any; csrf?: string; startedAt?: number; dbDurationMs?: number; dbCalls?: number };
 export const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "same-origin",
@@ -89,6 +89,7 @@ export class DbError extends Error {
   }
 }
 export async function db(ctx: Ctx, path: string, init: RequestInit = {}) {
+  const started=Date.now();
   const key = ctx.env.SUPABASE_SERVICE_ROLE_KEY || ctx.env.SUPABASE_SECRET_KEY;
   if (!ctx.env.SUPABASE_URL) throw new DbError(0, "missing_url", "");
   if (!key) throw new DbError(0, "missing_key", "");
@@ -99,6 +100,8 @@ export async function db(ctx: Ctx, path: string, init: RequestInit = {}) {
   h.set("Prefer", h.get("Prefer") || "return=representation");
   const base = ctx.env.SUPABASE_URL.replace(/\/+$/, "");
   const r = await fetch(base + "/rest/v1/" + path, { ...init, headers: h });
+  ctx.dbDurationMs=(ctx.dbDurationMs||0)+(Date.now()-started);
+  ctx.dbCalls=(ctx.dbCalls||0)+1;
   const text = await r.text();
   if (!r.ok) {
     let parsed: any = {};
@@ -126,6 +129,7 @@ export async function dbAll(ctx: Ctx, path: string) {
   }
 }
 export async function dbCount(ctx: Ctx, path: string) {
+  const started=Date.now();
   const key = ctx.env.SUPABASE_SERVICE_ROLE_KEY || ctx.env.SUPABASE_SECRET_KEY;
   if (!ctx.env.SUPABASE_URL) throw new DbError(0, "missing_url", "");
   if (!key) throw new DbError(0, "missing_key", "");
@@ -133,6 +137,8 @@ export async function dbCount(ctx: Ctx, path: string) {
   if (key.startsWith("eyJ")) headers.set("Authorization", "Bearer " + key);
   const base = ctx.env.SUPABASE_URL.replace(/\/+$/, "");
   const response = await fetch(base + "/rest/v1/" + path, { headers });
+  ctx.dbDurationMs=(ctx.dbDurationMs||0)+(Date.now()-started);
+  ctx.dbCalls=(ctx.dbCalls||0)+1;
   if (!response.ok)
     throw new DbError(response.status, "count_error", await response.text());
   const range = response.headers.get("content-range") || "*/0";
@@ -189,6 +195,12 @@ export async function readReceipt(ctx: Ctx, path: string) {
   return response;
 }
 export const q = (s: string) => encodeURIComponent(s);
+export function pagination(req:Request,defaultSize=25,maxSize=100){
+  const params=new URL(req.url).searchParams;
+  const page=Math.max(1,Math.floor(Number(params.get("page"))||1));
+  const pageSize=Math.min(maxSize,Math.max(1,Math.floor(Number(params.get("page_size"))||defaultSize)));
+  return{page,pageSize,from:(page-1)*pageSize,to:page*pageSize-1};
+}
 export function cookie(req: Request, name: string) {
   return req.headers
     .get("cookie")

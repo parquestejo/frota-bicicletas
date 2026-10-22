@@ -41,7 +41,7 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `025_performance_indexes.sql`.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `026_operational_stability.sql`.
 6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
@@ -201,4 +201,12 @@ Depois de instalar a versão 2.5.1, execute uma única vez:
 Esta migração acrescenta índices para os perfis de clientes, cauções e históricos e elimina os avisos de `search_path` apresentados pelo Security Advisor.
 
 Depois publique novamente a aplicação. A atualização acrescenta perfis permanentes de cliente frequente, Cartão Escolar Municipal, pré-autorizações renováveis válidas por 30 dias, alertas de caducidade, ficha de atividade com histórico, quilómetros e CO₂ estimados, código de autorização obrigatório nos alugueres com caução e devolução em qualquer quiosque.
+
+# Atualização 2.5.2 — estabilidade operacional
+
+Depois de instalar a versão 2.5.2, execute uma única vez:
+
+`supabase/migrations/026_operational_stability.sql`
+
+Esta migração reserva a devolução parcial às utilizações institucionais e acrescenta índices para os históricos paginados. Depois de obter a mensagem de sucesso, publique novamente a aplicação.
 

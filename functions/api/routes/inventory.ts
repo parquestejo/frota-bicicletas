@@ -1,6 +1,6 @@
 import {
   type Ctx, json, err, db, dbAll, dbCount, body, audit, allow, q,
-  passwordHash, uploadReceipt, readReceipt,
+  passwordHash, uploadReceipt, readReceipt, pagination,
 } from "../_shared";
 
 export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
@@ -28,6 +28,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       await audit(ctx,"publicar","tarifário",String(b.asset_type),null,{hour,day,effective_from:effective}); return json(rows,201);
     }
     if (route === "/dashboard" && request.method === "GET") {
+      const includeManagement = new URL(request.url).searchParams.get("management") === "1";
       const own =
         ctx.user.role === "admin" ? "" : `&started_by=eq.${q(ctx.user.id)}`;
       const returnOwner =
@@ -42,16 +43,16 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         await Promise.all([
         db(ctx, "bikes?active=eq.true&select=id,code,asset_type,status,kiosk_id"),
         db(ctx, "kiosks?active=eq.true&select=*"),
-        db(ctx, `rentals?status=eq.Em%20aberto${own}&select=id`),
-        db(
+        includeManagement ? Promise.resolve([]) : db(ctx, `rentals?status=eq.Em%20aberto${own}&select=id`),
+        includeManagement ? Promise.resolve([]) : db(
           ctx,
           "faults?status=in.(Aberta,Em%20análise,Em%20reparação)&select=*,bikes(code)&order=created_at.desc&limit=8",
         ),
-        db(
+        includeManagement ? Promise.resolve([]) : db(
           ctx,
           `rental_items?returned_at=not.is.null${returnOwner}&select=id,returned_at,rentals!inner(customer_ref,started_by),bikes(code)&order=returned_at.desc&limit=8`,
         ),
-        ctx.user.role === "manutencao"
+        includeManagement || ctx.user.role === "manutencao"
           ? Promise.resolve([])
           : db(
               ctx,
@@ -60,7 +61,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         ctx.user.role === "funcionario"
           ? Promise.resolve(0)
           : dbCount(ctx, "faults?status=in.(Aberta,Em%20análise,Em%20reparação)&select=id"),
-        ctx.user.role === "manutencao" ? Promise.resolve([]) : db(ctx,`deposit_authorizations?status=eq.active&expires_at=lte.${q(alertLimit)}&select=id,authorization_code,expires_at,customer_profile:customer_profiles(id,name)&order=expires_at.asc&limit=30`),
+        includeManagement || ctx.user.role === "manutencao" ? Promise.resolve([]) : db(ctx,`deposit_authorizations?status=eq.active&expires_at=lte.${q(alertLimit)}&select=id,authorization_code,expires_at,customer_profile:customer_profiles(id,name)&order=expires_at.asc&limit=30`),
         ]);
       const kiosks=ctx.user.role==='funcionario'?allKiosks.filter((k:any)=>k.allows_rentals):allKiosks;
       const visibleKioskIds=new Set(kiosks.map((k:any)=>k.id));
@@ -104,7 +105,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
           }),
         };
       let admin_management:any=null;
-      if(ctx.user.role==='admin'){
+      if(ctx.user.role==='admin' && includeManagement){
         const dateKey=(value:string|Date)=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Lisbon'}).format(new Date(value)),today=dateKey(new Date()),todayDate=new Date(today+'T00:00:00Z'),yesterdayDate=new Date(todayDate);yesterdayDate.setUTCDate(yesterdayDate.getUTCDate()-1);const yesterday=yesterdayDate.toISOString().slice(0,10),weekDate=new Date(todayDate);weekDate.setUTCDate(weekDate.getUTCDate()-((weekDate.getUTCDay()+6)%7));const weekStart=weekDate.toISOString().slice(0,10),previousWeekDate=new Date(weekDate);previousWeekDate.setUTCDate(previousWeekDate.getUTCDate()-7);const previousWeekStart=previousWeekDate.toISOString().slice(0,10),monthStart=today.slice(0,7)+'-01',monthDate=new Date(monthStart+'T00:00:00Z'),previousMonthDate=new Date(monthDate);previousMonthDate.setUTCMonth(previousMonthDate.getUTCMonth()-1);const previousMonthStart=previousMonthDate.toISOString().slice(0,10);
         const rentalKiosks=kiosks.filter((k:any)=>k.allows_rentals);
         const [periodRentals,periodClosures,openRentalDetails,discrepancies,recentClosures]=await Promise.all([
@@ -285,17 +286,17 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
     if (route === "/reports/data" && request.method === "GET") {
       if (!allow(ctx, "admin"))
         return err("Acesso reservado a administradores.", 403);
-      const [rentals, faults] = await Promise.all([
-        dbAll(
-          ctx,
-          "rentals?status=eq.Concluído&select=*,start_kiosk:kiosks(*),customer_profile:customer_profiles(id,kind,name,school),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))&order=started_at.desc",
-        ),
-        dbAll(
-          ctx,
-          "faults?select=*,bike:bikes(*),created_by_user:users!faults_created_by_fkey(full_name)&order=created_at.desc",
-        ),
-      ]);
-      return json({ rentals, faults });
+      const url=new URL(request.url),kind=url.searchParams.get("kind")||"rentals",fromDate=url.searchParams.get("from")||"",toDate=url.searchParams.get("to")||"",all=url.searchParams.get("all")==="1",{page,pageSize,from,to}=pagination(request,50,100);
+      if(!["rentals","faults"].includes(kind))return err("Tipo de relatório inválido.");
+      const validDate=(value:string)=>!value||/^\d{4}-\d{2}-\d{2}$/.test(value);
+      if(!validDate(fromDate)||!validDate(toDate)||fromDate&&toDate&&fromDate>toDate)return err("O período selecionado não é válido.");
+      const dateColumn=kind==="rentals"?"started_at":"created_at",filters=`${fromDate?`&${dateColumn}=gte.${q(fromDate+"T00:00:00Z")}`:""}${toDate?`&${dateColumn}=lte.${q(toDate+"T23:59:59Z")}`:""}`;
+      const query=kind==="rentals"
+        ? `rentals?status=eq.${q("Concluído")}&select=*,start_kiosk:kiosks(*),customer_profile:customer_profiles(id,kind,name,school),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))${filters}&order=started_at.desc`
+        : `faults?select=*,bike:bikes(*),created_by_user:users!faults_created_by_fkey(full_name)${filters}&order=created_at.desc`;
+      const countQuery=kind==="rentals"?`rentals?status=eq.${q("Concluído")}&select=id${filters}`:`faults?select=id${filters}`;
+      const [items,total]=await Promise.all([all?dbAll(ctx,query):db(ctx,query,{headers:{Range:`${from}-${to}`}}),dbCount(ctx,countQuery)]);
+      return json({[kind]:items,total,page,page_size:pageSize});
     }
     if (route === "/reports/analytics" && request.method === "GET") {
       if (!allow(ctx, "admin"))

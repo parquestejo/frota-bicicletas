@@ -5,5 +5,18 @@ export function canAdmin(role:string){return role==='admin'}
 export function canRent(b:SimBike,open:SimRental[]){return b.status==='Disponível'&&!open.some(r=>r.status==='Em aberto'&&r.bikeIds.includes(b.id)&&!r.returned.includes(b.id))}
 export function startRental(bikes:SimBike[],ids:string[],open:SimRental[]){if(!ids.length||ids.some(id=>!canRent(bikes.find(b=>b.id===id)!,open)))throw new Error('bike_not_available');return{id:'new',bikeIds:ids,returned:[],status:'Em aberto' as const}}
 export function returnBikes(r:SimRental,bikes:SimBike[],ids:string[],kiosk:string,anomalies:Set<string>){const updated=bikes.map(b=>ids.includes(b.id)?{...b,kiosk,status:anomalies.has(b.id)?'Avariada':'Disponível'}:b);const returned=[...new Set([...r.returned,...ids])];return{rental:{...r,returned,status:returned.length===r.bikeIds.length?'Concluído':'Em aberto'} as SimRental,bikes:updated,faults:ids.filter(id=>anomalies.has(id))}}
+export function returnSelectionAllowed(kind:string,pendingIds:string[],selectedIds:string[]){
+  if(!selectedIds.length)return false;
+  if(kind==='institutional')return selectedIds.every(id=>pendingIds.includes(id));
+  return selectedIds.length===pendingIds.length&&pendingIds.every(id=>selectedIds.includes(id));
+}
+export function durationPrice(hour:number,day:number,hours:number){
+  const hourly=Math.max(0,Number(hour)||0)*Math.max(1,Math.floor(Number(hours)||1));
+  return Math.round(Math.min(hourly,Math.max(0,Number(day)||0))*100)/100;
+}
+export function estimateImpact(hours:number,bicycles:number){
+  const distance=Math.round(Math.max(0,hours)*8*Math.max(0,Math.floor(bicycles))*100)/100;
+  return{distance,co2:Math.round(distance*0.204*1000)/1000};
+}
 export function closeFault(b:SimBike,status:'Disponível'|'Indisponível'|'Em manutenção'){return{...b,status}}
 export function audit(action:string,userId:string,entity:string){return{action,userId,entity,at:new Date().toISOString()}}

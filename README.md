@@ -1,8 +1,13 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.5.1
+## Versão 2.5.2
 
-Esta versão reduz o carregamento inicial, divide a interface por ecrãs, limita os dados operacionais aos registos recentes e acrescenta índices para clientes, cauções e históricos. Mantém também o endurecimento de segurança e as correções de integridade da versão 2.5.0.
+Esta versão melhora a estabilidade e a velocidade em bases de dados com mais histórico: as listas de alugueres, clientes, atividade e relatórios são paginadas no servidor; o painel administrativo carrega os indicadores de gestão depois dos dados operacionais; e cada resposta da API inclui métricas de tempo. A devolução parcial fica reservada às utilizações institucionais, com validação simultânea na interface e na base de dados.
+
+- Paginação e pesquisa no servidor, evitando transferir todo o histórico para o navegador.
+- Exportação dos relatórios continua a abranger todo o período escolhido, mesmo quando a tabela está paginada.
+- Cabeçalhos `Server-Timing`, `X-Response-Time` e `X-Database-Calls` e registo de pedidos com mais de um segundo.
+- Testes automáticos das regras de devolução, preço máximo diário, impacto ambiental e paginação.
 
 - Pagamento à hora com escolha livre do número de horas.
 - O preço horário é multiplicado pelo número de horas escolhido, tendo o preço diário de cada equipamento como valor máximo.
@@ -18,7 +23,7 @@ Esta versão reduz o carregamento inicial, divide a interface por ecrãs, limita
 - A tabela por quiosque passa a apresentar alugueres, bicicletas, acessórios, total de itens e valor.
 - A visão global é complementada pelo detalhe existente por tipologia de equipamento.
 
-Inclui preços automáticos por período e tipologia, benefício de residente, utilizações institucionais, cálculo do valor comercial, caução informativa e devoluções parciais em qualquer quiosque. As cauções só ficam registadas quando existe retenção.
+Inclui preços automáticos por período e tipologia, benefício de residente, utilizações institucionais, cálculo do valor comercial, caução informativa e devolução em qualquer quiosque. As devoluções parciais são exclusivas das utilizações institucionais; nos restantes alugueres, todos os itens pendentes são devolvidos em conjunto. As cauções só ficam registadas quando existe retenção.
 
 O funcionário não introduz valores: o sistema apresenta apenas o total a cobrar e a caução. O valor comercial é reservado aos relatórios. Nas utilizações institucionais não se escolhe período e o valor comercial é apurado internamente após a devolução integral.
 
@@ -77,7 +82,7 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 | `kiosks` | Dois quiosques e respetivo estado |
 | `users` / `sessions` | Utilizadores sem email, perfis e sessões por hash |
 | `bikes` / `bike_status_history` | Ficha, estado, localização e histórico da bicicleta |
-| `rentals` / `rental_items` | Aluguer e bicicletas incluídas; suporta devolução parcial |
+| `rentals` / `rental_items` | Aluguer e itens incluídos; suporta devolução parcial nas utilizações institucionais |
 | `faults` | Ocorrências de avaria |
 | `maintenance_interventions` | Uma ou várias intervenções por avaria |
 | `audit_log` | Rastreio das ações críticas |
@@ -94,7 +99,7 @@ O navegador nunca recebe a `service_role` nem contacta diretamente a base de dad
 - Dashboard com estados reais, distribuição por quiosque, alugueres em aberto, devoluções recentes e avarias pendentes.
 - Frota, filtros, criação e alteração administrativa, desativação sem apagar histórico.
 - Aluguer de uma ou várias bicicletas, transacional, com valor cobrado por Multibanco; o valor zero identifica um aluguer gratuito.
-- Devoluções parciais, mudança de quiosque e criação automática de avaria.
+- Devoluções parciais nas utilizações institucionais, mudança de quiosque e criação automática de avaria.
 - Avarias, passagem para manutenção e conclusão com escolha explícita do estado final.
 - Funcionários podem comunicar uma avaria sem consultar ocorrências, reparações ou histórico de manutenção; a gestão fica reservada a administradores e manutenção.
 - Histórico de estados e auditoria das ações críticas.
@@ -142,6 +147,7 @@ Requisitos: Node.js 20 ou superior, npm, uma conta gratuita Supabase e uma conta
    - `supabase/migrations/023_missing_rental_items.sql`
    - `supabase/migrations/024_security_and_integrity.sql`
    - `supabase/migrations/025_performance_indexes.sql`
+   - `supabase/migrations/026_operational_stability.sql`
    - `supabase/seed.sql`
 3. Copie `.env.example` para `.dev.vars` e preencha os valores. Nunca publique `.dev.vars`.
 4. Instale e execute:
@@ -155,7 +161,7 @@ Em alternativa, execute `npm run dev` para o frontend e `npx wrangler pages dev 
 
 ### Atualização de uma instalação existente
 
-Execute, por ordem, apenas as migrações que ainda não tenham sido aplicadas. Para atualizar da versão 2.5.0 para a 2.5.1, execute `supabase/migrations/025_performance_indexes.sql`. Se ainda estiver na versão 2.4.2, execute primeiro a migração `024_security_and_integrity.sql` e depois a `025_performance_indexes.sql`. Não volte a executar o `seed`.
+Execute, por ordem, apenas as migrações que ainda não tenham sido aplicadas. Para atualizar da versão 2.5.1 para a 2.5.2, execute `supabase/migrations/026_operational_stability.sql`. Se estiver numa versão anterior, execute primeiro as migrações em falta pela ordem numérica. Não volte a executar o `seed`.
 
 A antiga carga de 8 capacetes e 2 cadeados por quiosque foi uma operação pontual já concluída. Não existe qualquer reposição automática desses artigos.
 
@@ -218,16 +224,7 @@ npm test
 npm run build
 ```
 
-Estes testes rápidos incluem testes unitários do domínio simplificado e verificações estruturais de regressão. Não substituem testes da aplicação contra PostgreSQL real.
-
-Existe também uma suite de integração para executar exclusivamente num projeto Supabase de teste isolado:
-
-```bash
-TEST_SUPABASE_URL="https://PROJETO-DE-TESTE.supabase.co" \
-TEST_SUPABASE_SERVICE_ROLE_KEY="CHAVE-APENAS-DO-PROJETO-DE-TESTE" \
-INTEGRATION_TEST_CONFIRMATION="TEST_DATABASE_CAN_BE_CLEARED" \
-npm run test:integration
-```
+Estes testes rápidos incluem regras operacionais do domínio e paginação da API. Não substituem um ensaio manual dos fluxos críticos num ambiente de teste ligado a PostgreSQL real.
 
 Esta suite chama as funções SQL reais e verifica alugueres simultâneos, devoluções concorrentes, eliminação do contacto, atualização transacional de avarias e proteção quando existe outra avaria pendente. Nunca utilize credenciais de produção: os testes criam e eliminam registos.
 

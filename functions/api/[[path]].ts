@@ -18,7 +18,7 @@ export const onRequest: PagesFunction<Env> = async ({
   params,
   waitUntil,
 }) => {
-  const ctx: Ctx = { env };
+  const ctx: Ctx = { env, startedAt: Date.now(), dbDurationMs: 0, dbCalls: 0 };
   const route = normalizeApiPath(params.path as string | string[] | undefined);
   const parts = route.split("/").filter(Boolean);
   try {
@@ -26,7 +26,7 @@ export const onRequest: PagesFunction<Env> = async ({
       return new Response(null, { status: 204, headers: securityHeaders });
     if (route === "/version" && request.method === "GET")
       return json({
-        version: "2.5.1",
+        version: "2.5.2",
         routing: "array-safe",
         database_errors: "detailed",
       });
@@ -160,7 +160,12 @@ export const onRequest: PagesFunction<Env> = async ({
             flushPendingAlertEmails(ctx),
             flushEmailOutbox(ctx),
           ]).catch((error) => console.error("alert_email", error)));
-        return response;
+        const total=Date.now()-(ctx.startedAt||Date.now()),headers=new Headers(response.headers);
+        headers.set("Server-Timing",`app;dur=${total}, db;dur=${ctx.dbDurationMs||0}`);
+        headers.set("X-Response-Time",`${total}ms`);
+        headers.set("X-Database-Calls",String(ctx.dbCalls||0));
+        if(total>1000)console.warn("slow_request",{route,method:request.method,total,db_ms:ctx.dbDurationMs,db_calls:ctx.dbCalls});
+        return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
       }
     }
     return err("Página ou operação não encontrada.", 404);
@@ -185,6 +190,7 @@ export const onRequest: PagesFunction<Env> = async ({
         rental_not_open: ["Este aluguer já não está em aberto. Atualize a página.", 409],
         rental_not_completed: ["Esta operação só está disponível para alugueres concluídos.", 409],
         duplicate_rental_item: ["Este item já pertence ao aluguer.", 409],
+        partial_return_not_allowed: ["Nos alugueres não institucionais têm de ser devolvidos todos os itens em conjunto.", 409],
       };
       const translated=Object.entries(ruleMessages).find(([code])=>detail.includes(code));
       if(translated){const [message,status]=translated[1];return err(message,status);}

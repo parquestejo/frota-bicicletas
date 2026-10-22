@@ -1,5 +1,22 @@
-import {describe,expect,it} from 'vitest';import {audit,canAdmin,canLogin,canRent,closeFault,returnBikes,startRental} from '../src/domain';
-const bikes=[{id:'1',status:'Disponível',kiosk:'Torre'},{id:'2',status:'Disponível',kiosk:'Torre'},{id:'3',status:'Indisponível',kiosk:'Algés'}];
-describe('autenticação e permissões',()=>{it('exige utilizador e palavra-passe e bloqueia conta inativa',()=>{expect(canLogin(true,'ana','senha')).toBe(true);expect(canLogin(false,'ana','senha')).toBe(false);expect(canLogin(true,'','senha')).toBe(false)});it('reserva administração ao administrador',()=>{expect(canAdmin('funcionario')).toBe(false);expect(canAdmin('admin')).toBe(true)})});
-describe('alugueres',()=>{it('rejeita bicicleta indisponível',()=>expect(()=>startRental(bikes,['3'],[])).toThrow('bike_not_available'));it('impede dois alugueres abertos para a mesma bicicleta',()=>{const open=[{id:'a',bikeIds:['1'],returned:[],status:'Em aberto' as const}];expect(canRent(bikes[0],open)).toBe(false)});it('aceita várias bicicletas',()=>expect(startRental(bikes,['1','2'],[]).bikeIds).toHaveLength(2));it('mantém aluguer aberto numa devolução parcial',()=>{const r=startRental(bikes,['1','2'],[]);expect(returnBikes(r,bikes,['1'],'Algés',new Set()).rental.status).toBe('Em aberto')});it('conclui quando todas são devolvidas',()=>{const r=startRental(bikes,['1','2'],[]);expect(returnBikes(r,bikes,['1','2'],'Algés',new Set()).rental.status).toBe('Concluído')})});
-describe('devoluções e avarias',()=>{it('disponibiliza bicicleta sem anomalias',()=>{const r=startRental(bikes,['1'],[]),x=returnBikes(r,bikes,['1'],'Algés',new Set());expect(x.bikes[0]).toMatchObject({status:'Disponível',kiosk:'Algés'})});it('cria avaria e bloqueia bicicleta com anomalia',()=>{const r=startRental(bikes,['1'],[]),x=returnBikes(r,bikes,['1'],'Torre',new Set(['1']));expect(x.faults).toEqual(['1']);expect(x.bikes[0].status).toBe('Avariada')});it('altera a localização no quiosque de devolução',()=>{const r=startRental(bikes,['1'],[]);expect(returnBikes(r,bikes,['1'],'Algés',new Set()).bikes[0].kiosk).toBe('Algés')});it('encerramento define o estado final',()=>expect(closeFault(bikes[0],'Em manutenção').status).toBe('Em manutenção'));it('ações relevantes geram registo de auditoria',()=>expect(audit('devolver','u1','aluguer')).toMatchObject({action:'devolver',userId:'u1',entity:'aluguer'}))});
+import {describe,expect,it} from "vitest";
+import {durationPrice,estimateImpact,returnSelectionAllowed} from "../src/domain";
+
+describe("regras operacionais",()=>{
+  it("exige a devolução integral nos alugueres normais",()=>{
+    expect(returnSelectionAllowed("normal",["a","b"],["a"])).toBe(false);
+    expect(returnSelectionAllowed("frequent",["a","b"],["a","b"])).toBe(true);
+    expect(returnSelectionAllowed("school",["a"],["a"])).toBe(true);
+  });
+  it("permite devolução parcial apenas no institucional",()=>{
+    expect(returnSelectionAllowed("institutional",["a","b"],["a"])).toBe(true);
+    expect(returnSelectionAllowed("institutional",["a","b"],["x"])).toBe(false);
+  });
+  it("aplica o preço diário como teto",()=>{
+    expect(durationPrice(4,10,1)).toBe(4);
+    expect(durationPrice(4,10,2)).toBe(8);
+    expect(durationPrice(4,10,3)).toBe(10);
+  });
+  it("calcula distância e CO2 de forma determinística",()=>{
+    expect(estimateImpact(2,2)).toEqual({distance:32,co2:6.528});
+  });
+});

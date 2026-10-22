@@ -5,6 +5,12 @@ import type { AssetType, Bike, BikeStatus, Fault, Kiosk, Rental, RentalDiscrepan
 import { useFeedback } from "../Feedback";
 import { assetLabel, assetOptions, assetTypeOf, Badge, DateRange, daysSince, dayKey, exportCSV, fmt, inDateRange, isBicycle, operationalStatuses, statuses, useLoad } from "./shared";
 import { AdminDashboard } from "../AdminDashboard";
+function ProgressiveAdminDashboard(){
+  const {data,error}=useLoad<any>("/dashboard?management=1");
+  if(error)return <section className="card"><p className="error">Não foi possível carregar os indicadores de gestão: {error}</p></section>;
+  if(!data)return <section className="card"><p>A carregar indicadores de gestão…</p></section>;
+  return <AdminDashboard data={data.admin_management}/>;
+}
 export function Dashboard({ user }: { user: User }) {
   const maintenance = user.role === "manutencao";
   const canViewFaults = user.role !== "funcionario";
@@ -107,7 +113,7 @@ export function Dashboard({ user }: { user: User }) {
           </div>
         </section>
       )}
-      {user.role === "admin" && <AdminDashboard data={data.admin_management} />}
+      {user.role === "admin" && <ProgressiveAdminDashboard />}
       {!maintenance && (
         <section className="card rented-section">
           <div className="title compact-title">

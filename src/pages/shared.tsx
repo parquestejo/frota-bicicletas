@@ -62,7 +62,10 @@ export function useLoad<T>(path: string, refresh = 0) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    api<T>(path).then(setData).catch((reason) => setError(reason.message));
+    let current=true;
+    setError("");
+    api<T>(path).then((value)=>{if(current)setData(value)}).catch((reason) => {if(current)setError(reason.message)});
+    return()=>{current=false};
   }, [path, refresh]);
   return { data, error };
 }

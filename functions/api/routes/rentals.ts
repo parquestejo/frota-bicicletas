@@ -1,14 +1,20 @@
 import {
   type Ctx, json, err, db, dbAll, dbCount, body, audit, allow, q,
-  passwordHash, uploadReceipt, readReceipt,
+  passwordHash, uploadReceipt, readReceipt, pagination,
 } from "../_shared";
 import { SCHOOLS } from "../schools";
 
 export async function handleRentalRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
     if (route === "/admin/customers" && request.method === "GET") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
-      const profiles=await db(ctx,"customer_profiles?select=*&order=name.asc&limit=1000");
-      if(!profiles.length)return json({customers:[]});
+      const url=new URL(request.url),kind=url.searchParams.get("kind"),search=String(url.searchParams.get("q")||"").trim().replace(/[%*_(),.]/g,"").slice(0,80),{page,pageSize,from,to}=pagination(request,25,100);
+      if(kind&&!['frequent','school'].includes(kind))return err("Tipo de cliente inválido.");
+      const filters=`${kind?`&kind=eq.${q(kind)}`:""}${search?`&or=(name.ilike.*${q(search)}*,nif.ilike.*${q(search)}*,school.ilike.*${q(search)}*,email.ilike.*${q(search)}*,phone.ilike.*${q(search)}*)`:""}`;
+      const [profiles,total]=await Promise.all([
+        db(ctx,`customer_profiles?select=*&order=name.asc${filters}`,{headers:{Range:`${from}-${to}`}}),
+        dbCount(ctx,`customer_profiles?select=id${filters}`),
+      ]);
+      if(!profiles.length)return json({customers:[],page,page_size:pageSize,total});
       const ids=profiles.map((p:any)=>p.id).join(",");
       const [auths,rentals]=await Promise.all([
         db(ctx,`deposit_authorizations?customer_profile_id=in.(${ids})&select=*&order=authorized_at.desc`),
@@ -23,7 +29,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         const activeAuthorization=latest&&latest.status==="active"&&new Date(latest.expires_at).getTime()>Date.now()?latest:null;
         return {...profile,nif:`*** *** ${String(profile.nif).slice(-3)}`,active_authorization:activeAuthorization,last_authorization:latest,activity:{rental_count:profileRentals.length,estimated_distance_km:profileRentals.reduce((s:number,r:any)=>s+Number(r.estimated_distance_km||0),0),estimated_co2_kg:profileRentals.reduce((s:number,r:any)=>s+Number(r.estimated_co2_kg||0),0)}};
       });
-      return json({customers});
+      return json({customers,page,page_size:pageSize,total});
     }
     if (parts[0] === "admin" && parts[1] === "customers" && parts[2] && request.method === "GET") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
@@ -87,6 +93,9 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
     if (parts[0] === "rentals" && ctx.user.role === "manutencao")
       return err("O perfil de manutenção não tem acesso aos alugueres.", 403);
     if (route === "/rentals" && request.method === "GET") {
+      const url=new URL(request.url),historySearch=String(url.searchParams.get("q")||"").trim().replace(/[%*_(),.]/g,"").slice(0,80),fromDate=url.searchParams.get("from")||"",toDate=url.searchParams.get("to")||"",{page:historyPage,pageSize:historyPageSize,from:historyFrom,to:historyTo}=pagination(request,50,100);
+      const validDate=(value:string)=>!value||/^\d{4}-\d{2}-\d{2}$/.test(value);
+      if(!validDate(fromDate)||!validDate(toDate)||fromDate&&toDate&&fromDate>toDate)return err("O período selecionado não é válido.");
       const owner =
         ctx.user.role === "admin" ? "" : `&started_by=eq.${q(ctx.user.id)}`;
       const discrepancyOwner =
@@ -94,16 +103,14 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       // Este ecrã é operacional: enviar apenas os campos efetivamente usados
       // evita transferir centenas de registos e relações completas em cada visita.
       const rentalSelect = "select=id,reference,customer_ref,customer_contact,start_kiosk_id,status,started_at,started_by,returned_at,returned_by,charged_amount,rental_kind,rental_period,rental_hours,expected_amount,discount_amount,institutional_entity,institutional_person,authorization_code,customer_profile_id,deposit_authorization_id,estimated_distance_km,estimated_co2_kg,corrected_at,correction_reason,start_kiosk:kiosks(id,name),customer_profile:customer_profiles(id,kind,name,school),deposit_authorization:deposit_authorizations(id,authorization_code,amount,authorized_at,expires_at,status),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(id,rental_id,bike_id,returned_at,returned_by,return_kiosk_id,anomaly,anomaly_description,deposit_retained,deposit_retention_reason,bike:bikes(id,code,asset_type,model,kiosk_id,status,active),return_kiosk:kiosks(id,name),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
-      const [openRentals, completedRentals, annulledRentals, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices] = await Promise.all([
+      const historyFilters=`&status=in.(${q("Concluído")},Anulado)${owner}${fromDate?`&started_at=gte.${q(fromDate+"T00:00:00Z")}`:""}${toDate?`&started_at=lte.${q(toDate+"T23:59:59Z")}`:""}${historySearch?`&or=(reference.ilike.*${q(historySearch)}*,customer_ref.ilike.*${q(historySearch)}*)`:""}`;
+      const [openRentals, historyRentals, historyTotal, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices] = await Promise.all([
         db(
           ctx,
           `rentals?${rentalSelect}&status=eq.Em%20aberto&order=started_at.desc`,
         ),
-        db(
-          ctx,
-          `rentals?${rentalSelect}&status=eq.Concluído${owner}&order=started_at.desc&limit=150`,
-        ),
-        ctx.user.role === "admin" ? db(ctx, `rentals?${rentalSelect}&status=eq.Anulado&order=started_at.desc&limit=50`) : Promise.resolve([]),
+        db(ctx,`rentals?${rentalSelect}${historyFilters}&order=started_at.desc`,{headers:{Range:`${historyFrom}-${historyTo}`}}),
+        dbCount(ctx,`rentals?select=id${historyFilters}`),
         db(
           ctx,
           "bikes?active=eq.true&status=eq.Disponível&select=id,code,asset_type,model,kiosk_id,status,active,kiosk:kiosks!inner(id,name,allows_rentals)&kiosk.allows_rentals=eq.true&order=code",
@@ -125,8 +132,8 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         db(ctx, "equipment_prices?effective_from=lte.now()&select=*&order=effective_from.desc"),
       ]);
       const currentPrices = prices.filter((price:any,index:number,list:any[]) => list.findIndex((x:any)=>x.asset_type===price.asset_type&&x.period===price.period)===index);
-      const rentals=[...openRentals,...completedRentals,...annulledRentals].sort((a:any,b:any)=>String(b.started_at).localeCompare(String(a.started_at)));
-      return json({ rentals, available_bikes: bikes, correction_bikes: correctionBikes, kiosks, discrepancies, summary, equipment_types: equipmentTypes, prices: currentPrices });
+      const rentals=[...openRentals,...historyRentals];
+      return json({ rentals, history_total:historyTotal,history_page:historyPage,history_page_size:historyPageSize,available_bikes: bikes, correction_bikes: correctionBikes, kiosks, discrepancies, summary, equipment_types: equipmentTypes, prices: currentPrices });
     }
     if (parts[0] === "rentals" && parts[1] && parts[2] === "correct" && request.method === "PATCH") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);

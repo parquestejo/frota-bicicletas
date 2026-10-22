@@ -6,18 +6,13 @@ import { useFeedback } from "../Feedback";
 import { assetLabel, assetOptions, assetTypeOf, Badge, DateRange, daysSince, dayKey, exportCSV, fmt, inDateRange, isBicycle, operationalStatuses, statuses, useLoad } from "./shared";
 import { RentalAnalytics } from "./RentalAnalytics";
 export function Reports() {
-  const reportsLoad = useLoad<{ rentals: Rental[]; faults: Fault[] }>("/reports/data");
   const [tab, setTab] = useState<"rentals" | "faults">("rentals"),
     [dateFrom, setDateFrom] = useState(""),
-    [dateTo, setDateTo] = useState("");
-  const rentals = (reportsLoad.data?.rentals || []).filter(
-      (r) =>
-        r.status === "Concluído" && inDateRange(r.started_at, dateFrom, dateTo),
-    ),
-    faults = (reportsLoad.data?.faults || []).filter((f) =>
-      inDateRange(f.created_at, dateFrom, dateTo),
-    );
-  const rentalRows = rentals.flatMap((r) =>
+    [dateTo, setDateTo] = useState(""),[page,setPage]=useState(1),[exportBusy,setExportBusy]=useState(false);
+  const reportPath=useMemo(()=>`/reports/data?kind=${tab}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}&page=${page}&page_size=50`,[tab,dateFrom,dateTo,page]);
+  const reportsLoad = useLoad<{ rentals?: Rental[]; faults?: Fault[];total:number;page_size:number }>(reportPath);
+  const rentals = reportsLoad.data?.rentals || [],faults = reportsLoad.data?.faults || [],total=reportsLoad.data?.total||0,pages=Math.max(1,Math.ceil(total/(reportsLoad.data?.page_size||50)));
+  const rentalRowsFor = (list:Rental[]) => list.flatMap((r) =>
     r.items.map((i) => [
       r.reference,
       r.customer_ref,
@@ -43,7 +38,7 @@ export function Reports() {
       Number(r.estimated_co2_kg || 0).toFixed(3),
     ]),
   );
-  const faultRows = faults.map((f) => [
+  const faultRowsFor = (list:Fault[]) => list.map((f) => [
     f.bike?.code,
     assetLabel(f.bike),
     f.origin,
@@ -56,6 +51,14 @@ export function Reports() {
     f.created_by_user?.full_name,
     f.notes || "",
   ]);
+  async function exportAll(){
+    setExportBusy(true);
+    try{
+      const result=await api<{rentals?:Rental[];faults?:Fault[]}>(`/reports/data?kind=${tab}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}&all=1`);
+      if(tab==="rentals")exportCSV("alugueres-concluidos.csv",["Referência","Cliente","Tipo de utilização","Valor Multibanco (€)","Valor comercial (€)","Benefício/desconto (€)","Entidade institucional","Pessoa que levantou","Item","Tipo","Quiosque de saída","Quiosque de devolução","Início","Devolução","Registado por","Devolvido por","Anomalia","Descrição da anomalia","Caução retida (€)","Motivo da retenção","Distância estimada (km)","CO₂ evitado estimado (kg)"],rentalRowsFor(result.rentals||[]));
+      else exportCSV("avarias.csv",["Item","Tipo","Origem","Categoria","Descrição","Gravidade","Utilizável","Estado","Data","Registado por","Notas"],faultRowsFor(result.faults||[]));
+    }finally{setExportBusy(false)}
+  }
   return (
     <>
       <div className="title">
@@ -67,22 +70,22 @@ export function Reports() {
       <div className="report-tabs">
         <button
           className={tab === "rentals" ? "primary" : "secondary"}
-          onClick={() => setTab("rentals")}
+          onClick={() => { setTab("rentals"); setPage(1); }}
         >
-          Alugueres concluídos ({rentals.length})
+          Alugueres concluídos
         </button>
         <button
           className={tab === "faults" ? "primary" : "secondary"}
-          onClick={() => setTab("faults")}
+          onClick={() => { setTab("faults"); setPage(1); }}
         >
-          Avarias ({faults.length})
+          Avarias
         </button>
       </div>
       <DateRange
         from={dateFrom}
         to={dateTo}
-        onFrom={setDateFrom}
-        onTo={setDateTo}
+        onFrom={(value) => { setDateFrom(value); setPage(1); }}
+        onTo={(value) => { setDateTo(value); setPage(1); }}
       />
       {reportsLoad.error && (
         <p className="error">{reportsLoad.error}</p>
@@ -97,38 +100,10 @@ export function Reports() {
             </div>
             <button
               className="primary"
-              onClick={() =>
-                exportCSV(
-                  "alugueres-concluidos.csv",
-                  [
-                    "Referência",
-                    "Cliente",
-                    "Tipo de utilização",
-                    "Valor Multibanco (€)",
-                    "Valor comercial (€)",
-                    "Benefício/desconto (€)",
-                    "Entidade institucional",
-                    "Pessoa que levantou",
-                    "Item",
-                    "Tipo",
-                    "Quiosque de saída",
-                    "Quiosque de devolução",
-                    "Início",
-                    "Devolução",
-                    "Registado por",
-                    "Devolvido por",
-                    "Anomalia",
-                    "Descrição da anomalia",
-                    "Caução retida (€)",
-                    "Motivo da retenção",
-                    "Distância estimada (km)",
-                    "CO₂ evitado estimado (kg)",
-                  ],
-                  rentalRows,
-                )
-              }
+              onClick={exportAll}
+              disabled={exportBusy}
             >
-              Exportar para Excel (CSV)
+              {exportBusy ? "A preparar…" : "Exportar período completo (CSV)"}
             </button>
           </div>
           <div className="table-wrap">
@@ -198,27 +173,10 @@ export function Reports() {
             </div>
             <button
               className="primary"
-              onClick={() =>
-                exportCSV(
-                  "avarias.csv",
-                  [
-                    "Item",
-                    "Tipo",
-                    "Origem",
-                    "Categoria",
-                    "Descrição",
-                    "Gravidade",
-                    "Utilizável",
-                    "Estado",
-                    "Data",
-                    "Registado por",
-                    "Notas",
-                  ],
-                  faultRows,
-                )
-              }
+              onClick={exportAll}
+              disabled={exportBusy}
             >
-              Exportar para Excel (CSV)
+              {exportBusy ? "A preparar…" : "Exportar período completo (CSV)"}
             </button>
           </div>
           <div className="table-wrap">
@@ -263,6 +221,11 @@ export function Reports() {
           </div>
         </>
       )}
+      <nav className="pagination" aria-label="Paginação do relatório">
+        <button className="secondary" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button>
+        <span>Página {page} de {pages} · {total} registos</span>
+        <button className="secondary" disabled={page >= pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Seguinte</button>
+      </nav>
     </>
   );
 }

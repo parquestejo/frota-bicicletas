@@ -4,6 +4,7 @@ import { api, post, patch } from "../api";
 import type { AssetType, Bike, BikeStatus, Fault, Kiosk, Rental, RentalDiscrepancy, RentalItem, RentalPeriodUpdate, User } from "../types";
 import { useFeedback } from "../Feedback";
 import { RentalSummary } from "./Fleet";
+import { returnSelectionAllowed } from "../domain";
 const rentalMoney = (value: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(value || 0));
 import { assetLabel, assetOptions, assetTypeOf, Badge, DateRange, daysSince, dayKey, exportCSV, fmt, inDateRange, isBicycle, operationalStatuses, statuses, useLoad } from "./shared";
 function RentalCorrection({
@@ -238,6 +239,8 @@ export function Rentals({ user }: { user: User }) {
   const [refresh, setRefresh] = useState(0),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState(""),
+    [historySearch,setHistorySearch]=useState(""),
+    [historyPage,setHistoryPage]=useState(1),
     [returning, setReturning] = useState<Rental | null>(null),
     [resolving, setResolving] = useState(""),
     [resolution, setResolution] = useState(""),
@@ -260,12 +263,15 @@ export function Rentals({ user }: { user: User }) {
       completed_month: number;
       completed_all: number;
     };
-  }>("/rentals", refresh);
-  const visibleRentals = (data?.rentals || []).filter((r) =>
-    inDateRange(r.started_at, dateFrom, dateTo),
-  );
+    history_total:number;
+    history_page_size:number;
+  }>(useMemo(()=>`/rentals?page=${historyPage}&page_size=50&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}&q=${encodeURIComponent(historySearch.trim())}`,[historyPage,dateFrom,dateTo,historySearch]), refresh);
+  const historyPages=Math.max(1,Math.ceil(Number(data?.history_total||0)/Number(data?.history_page_size||50)));
   async function confirmReturn() {
     if (!returning) return;
+    const pendingIds=returning.items.filter((item)=>!item.returned_at).map((item)=>item.id);
+    if(!returnSelectionAllowed(returning.rental_kind||"normal",pendingIds,returnItemIds))
+      return notify("Nos alugueres não institucionais têm de ser devolvidos todos os itens em conjunto.","error");
     const items = returning.items
       .filter((i) => !i.returned_at && returnItemIds.includes(i.id))
       .map((i) => ({
@@ -316,8 +322,8 @@ export function Rentals({ user }: { user: User }) {
       <DateRange
         from={dateFrom}
         to={dateTo}
-        onFrom={setDateFrom}
-        onTo={setDateTo}
+        onFrom={(value)=>{setDateFrom(value);setHistoryPage(1)}}
+        onTo={(value)=>{setDateTo(value);setHistoryPage(1)}}
       />
       {returning && (
         <section className="card return-box">
@@ -334,11 +340,12 @@ export function Rentals({ user }: { user: User }) {
             </button>
           </div>
           <label>Quiosque de devolução<select value={returnKioskId} onChange={(e)=>setReturnKioskId(e.target.value)}>{(data?.kiosks || []).map((k)=><option key={k.id} value={k.id}>{k.name}</option>)}</select></label>
+          {returning.rental_kind!=="institutional"&&<p className="notice">Este aluguer deve ser devolvido integralmente. Pode indicar anomalias e retenções individualmente.</p>}
           {returning.items
             .filter((i) => !i.returned_at)
             .map((i) => (
               <div className="return-item" key={i.id}>
-                <label><input type="checkbox" checked={returnItemIds.includes(i.id)} onChange={(e)=>setReturnItemIds((current)=>e.target.checked?[...current,i.id]:current.filter((id)=>id!==i.id))}/> <b>{assetLabel(i.bike)} {i.bike?.code}</b></label>
+                <label><input type="checkbox" disabled={returning.rental_kind!=="institutional"} checked={returnItemIds.includes(i.id)} onChange={(e)=>setReturnItemIds((current)=>e.target.checked?[...current,i.id]:current.filter((id)=>id!==i.id))}/> <b>{assetLabel(i.bike)} {i.bike?.code}</b></label>
                 {returnItemIds.includes(i.id) && <>
                 <textarea
                   placeholder="Sem anomalia — deixe em branco. Se houver um problema, descreva-o aqui para abrir um ticket."
@@ -363,7 +370,7 @@ export function Rentals({ user }: { user: User }) {
       {error && <p className="error">{error}</p>}
       <h2>Em aberto</h2>
       <div className="cards">
-        {visibleRentals
+        {(data?.rentals||[])
           .filter((r) => r.status === "Em aberto")
           .map((r) => (
             <article className="card" key={r.id}>
@@ -453,6 +460,7 @@ export function Rentals({ user }: { user: User }) {
         </section>
       )}
       <h2>Concluídos e anulados recentes</h2>
+      <label>Pesquisar histórico<input type="search" value={historySearch} onChange={(e)=>{setHistorySearch(e.target.value);setHistoryPage(1)}} placeholder="Referência ou cliente"/></label>
       <div className="table-wrap">
         <table>
           <thead>
@@ -470,7 +478,7 @@ export function Rentals({ user }: { user: User }) {
             </tr>
           </thead>
           <tbody>
-            {visibleRentals
+            {(data?.rentals||[])
               .filter((r) => r.status !== "Em aberto")
               .map((r) => (
                 <tr key={r.id}>
@@ -489,6 +497,7 @@ export function Rentals({ user }: { user: User }) {
           </tbody>
         </table>
       </div>
+      <div className="pagination"><button className="secondary" disabled={historyPage<=1} onClick={()=>setHistoryPage(v=>v-1)}>Anterior</button><span>Página {historyPage} de {historyPages} · {data?.history_total||0} registos</span><button className="secondary" disabled={historyPage>=historyPages} onClick={()=>setHistoryPage(v=>v+1)}>Seguinte</button></div>
     </>
   );
 }

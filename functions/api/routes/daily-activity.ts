@@ -1,6 +1,6 @@
 import {
   type Ctx, json, err, db, dbAll, dbCount, body, audit, allow, q,
-  passwordHash, uploadReceipt, readReceipt, securityHeaders,
+  passwordHash, uploadReceipt, readReceipt, securityHeaders, pagination,
 } from "../_shared";
 
 export async function handleDailyAndActivityRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
@@ -232,11 +232,13 @@ export async function handleDailyAndActivityRoutes(ctx: Ctx, request: Request, r
     if (route === "/activity" && request.method === "GET") {
       if (!allow(ctx, "admin"))
         return err("Acesso reservado a administradores.", 403);
-      const rows = await db(
-        ctx,
-        "audit_log?select=*,user:users(full_name,username)&order=created_at.desc&limit=500",
-      );
-      return json({ activity: rows });
+      const url=new URL(request.url),search=String(url.searchParams.get("q")||"").trim().replace(/[%*_(),.]/g,"").slice(0,80),{page,pageSize,from,to}=pagination(request,50,100);
+      const filters=search?`&or=(action.ilike.*${q(search)}*,entity.ilike.*${q(search)}*,note.ilike.*${q(search)}*)`:"";
+      const [rows,total]=await Promise.all([
+        db(ctx,`audit_log?select=*,user:users(full_name,username)&order=created_at.desc${filters}`,{headers:{Range:`${from}-${to}`}}),
+        dbCount(ctx,`audit_log?select=id${filters}`),
+      ]);
+      return json({ activity: rows,page,page_size:pageSize,total });
     }
   return null;
 }
