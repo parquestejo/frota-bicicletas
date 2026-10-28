@@ -1,8 +1,11 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.6.1
+## Versão 2.6.2
 
 Esta versão reúne o controlo operacional da 2.5.3 e o programa de pontos da 2.6. Mantém as otimizações da 2.5.2 e acrescenta diagnóstico de incongruências, histórico das tarefas automáticas, repetição de emails falhados, monitorização de desempenho, número MOVE para clientes, rankings internos, campanhas e prémios.
+
+- Novo ícone de instalação com bicicleta em cinzento-escuro sobre o amarelo da Parques Tejo.
+- Nome curto **Frota PT** e configuração para instalação no ecrã principal de iPhone e Android.
 
 - Os alugueres concluídos mostram agora o quiosque de origem e todos os quiosques de entrega.
 - A operação passa a ver os percursos entre quiosques, as bicicletas que entraram e saíram e o saldo por local para apoiar o balanceamento.

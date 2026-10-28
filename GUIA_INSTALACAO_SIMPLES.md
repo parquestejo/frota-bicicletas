@@ -232,3 +232,9 @@ Depois de instalar a versão 2.6.1, execute uma única vez:
 
 A migração cria os indicadores de viagens entre quiosques. A aplicação passa a mostrar a origem e a entrega nos alugueres concluídos, os percursos mais utilizados, a percentagem de alugueres que terminam noutro quiosque e o saldo de bicicletas por local. Um saldo negativo sinaliza uma potencial necessidade de reposição; um saldo positivo sinaliza acumulação.
 
+# Atualização 2.6.2 — ícone da aplicação
+
+Esta versão acrescenta o ícone de bicicleta com as cores da Parques Tejo e a configuração de instalação no ecrã principal. Não exige qualquer migração da base de dados: basta publicar novamente a aplicação.
+
+Num iPhone onde a aplicação já esteja guardada, remova o atalho antigo e volte a escolher **Partilhar → Adicionar ao ecrã principal** para o novo ícone aparecer imediatamente.
+
