@@ -132,7 +132,7 @@ export interface CustomerRentalHistory {
   estimated_distance_km?: number;
   estimated_co2_kg?: number;
   start_kiosk?: { name: string };
-  items?: { id: string; bike?: { code: string; asset_type: string } }[];
+  items?: { id: string; bike?: { code: string; asset_type: string }; return_kiosk?: { name: string } }[];
 }
 export interface RentalPeriodUpdate {
   additional_amount?: number;

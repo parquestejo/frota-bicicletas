@@ -5,8 +5,26 @@ import type { AssetType, Bike, BikeStatus, Fault, Kiosk, Rental, RentalDiscrepan
 import { useFeedback } from "../Feedback";
 import { RentalSummary } from "./Fleet";
 import { returnSelectionAllowed } from "../domain";
+import type { RentalNetworkAnalytics } from "../reportPdf";
 const rentalMoney = (value: number) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(value || 0));
 import { assetLabel, assetOptions, assetTypeOf, Badge, DateRange, daysSince, dayKey, exportCSV, fmt, inDateRange, isBicycle, operationalStatuses, statuses, useLoad } from "./shared";
+const returnKiosks = (rental:Rental) => [...new Set(rental.items.map((item)=>item.return_kiosk?.name).filter(Boolean))] as string[];
+
+function NetworkOperations({from,to,refresh}:{from:string;to:string;refresh:number}){
+  const path=useMemo(()=>`/rentals/network?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,[from,to]);
+  const {data,error}=useLoad<{network:RentalNetworkAnalytics}>(path,refresh);
+  if(error)return <p className="error">Não foi possível calcular os movimentos entre quiosques: {error}</p>;
+  if(!data)return <section className="card"><p>A calcular movimentos entre quiosques…</p></section>;
+  const network=data.network;
+  return <section className="card">
+    <div className="title report-title"><div><h2>Rede e balanceamento</h2><p>Movimentos de bicicletas entre quiosques no período selecionado.</p></div><strong>{network.cross_kiosk_rental_count} alugueres em rede · {Number(network.cross_kiosk_percentage||0).toLocaleString("pt-PT")}%</strong></div>
+    <div className="grid2 analytics-grid">
+      <div><h3>Saldo por quiosque</h3><div className="table-wrap"><table><thead><tr><th>Quiosque</th><th>Saíram</th><th>Entraram</th><th>Saldo</th><th>Disponíveis agora</th></tr></thead><tbody>{network.balances.map((item)=><tr key={item.id}><td>{item.name}</td><td>{item.network_out}</td><td>{item.network_in}</td><td><b>{item.net_change>0?`+${item.net_change}`:item.net_change}</b></td><td>{item.current_available}</td></tr>)}</tbody></table></div></div>
+      <div><h3>Percursos entre quiosques</h3><div className="table-wrap"><table><thead><tr><th>Percurso</th><th>Alugueres</th><th>Bicicletas</th><th>Acessórios</th></tr></thead><tbody>{network.routes.slice(0,8).map((item)=><tr key={`${item.origin_id}-${item.destination_id}`}><td>{item.origin_name} → {item.destination_name}</td><td>{item.rental_count}</td><td>{item.bicycle_count}</td><td>{item.accessory_count}</td></tr>)}{!network.routes.length&&<tr><td colSpan={4} className="muted">Sem entregas noutro quiosque neste período.</td></tr>}</tbody></table></div></div>
+    </div>
+    <p className="muted">Saldo negativo significa que o quiosque perdeu bicicletas para outros locais; saldo positivo significa que recebeu mais bicicletas do que enviou.</p>
+  </section>;
+}
 function RentalCorrection({
   rental,
   availableBikes,
@@ -325,6 +343,7 @@ export function Rentals({ user }: { user: User }) {
         onFrom={(value)=>{setDateFrom(value);setHistoryPage(1)}}
         onTo={(value)=>{setDateTo(value);setHistoryPage(1)}}
       />
+      <NetworkOperations from={dateFrom} to={dateTo} refresh={refresh}/>
       {returning && (
         <section className="card return-box">
           <div className="title">
@@ -470,6 +489,8 @@ export function Rentals({ user }: { user: User }) {
               <th>Estado</th>
               <th>Itens</th>
               <th>Valor</th>
+              <th>Origem</th>
+              <th>Entrega</th>
               <th>Registado por</th>
               <th>Início</th>
               <th>Fim</th>
@@ -487,6 +508,8 @@ export function Rentals({ user }: { user: User }) {
                   <td><Badge>{r.status}</Badge>{r.corrected_at && <small className="block-meta">Corrigido</small>}</td>
                   <td>{r.items.map((i) => i.bike?.code).join(", ")}</td>
                   <td>{rentalMoney(r.charged_amount)}</td>
+                  <td>{r.start_kiosk?.name || "—"}</td>
+                  <td>{returnKiosks(r).join(", ") || "—"}{r.status==="Concluído"&&returnKiosks(r).some((name)=>name!==r.start_kiosk?.name)&&<small className="block-meta">Entrega noutro quiosque</small>}</td>
                   <td>{r.started_by_user?.full_name || "—"}</td>
                   <td>{fmt(r.started_at)}</td>
                   <td>{fmt(r.returned_at)}</td>

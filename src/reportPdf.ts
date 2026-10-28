@@ -1,6 +1,15 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+export type RentalNetworkAnalytics = {
+  rental_count: number;
+  cross_kiosk_rental_count: number;
+  same_kiosk_rental_count: number;
+  cross_kiosk_percentage: number;
+  routes: { origin_id: string; origin_name: string; destination_id: string; destination_name: string; rental_count: number; bicycle_count: number; accessory_count: number; item_count: number }[];
+  balances: { id: string; name: string; network_out: number; network_in: number; net_change: number; current_available: number }[];
+};
+
 export type RentalAnalyticsReport = {
   rental_count: number;
   item_count: number;
@@ -18,6 +27,7 @@ export type RentalAnalyticsReport = {
   kiosks: { id: string; name: string; rental_count: number; bicycle_count: number; accessory_count: number; item_count: number; revenue: number }[];
   asset_types: { asset_type: string; item_count: number }[];
   stockouts: { id: string; kiosk_name: string; started_at: string; ended_at?: string; rented_count: number; out_of_service_count: number; cause: string; duration_minutes: number }[];
+  network: RentalNetworkAnalytics;
 };
 
 const yellow: [number, number, number] = [232, 163, 40];
@@ -83,6 +93,7 @@ function horizontalBars(doc: jsPDF, title: string, rows: { label: string; value:
 
 export function createRentalAnalyticsPdf(report: RentalAnalyticsReport, from: string, to: string, logo?: string) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const network=report.network||{rental_count:0,cross_kiosk_rental_count:0,same_kiosk_rental_count:0,cross_kiosk_percentage:0,routes:[],balances:[]};
   const generated = new Intl.DateTimeFormat("pt-PT", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Lisbon" }).format(new Date());
 
   doc.setTextColor(...dark).setFont("helvetica", "bold").setFontSize(20).text("Relatório de alugueres", 14, 38);
@@ -93,7 +104,8 @@ export function createRentalAnalyticsPdf(report: RentalAnalyticsReport, from: st
     ["Alugueres", String(report.rental_count)], ["Itens alugados", String(report.item_count)],
     ["Receita Multibanco", money(report.revenue)], ["Valor comercial", money(report.commercial_value || 0)],
     ["Duração média", duration(report.average_duration_minutes)],
-    ["Dia com maior procura", report.busiest_weekday || "—"], ["Dias sem bicicletas", String(report.stockout_days)],
+    ["Dia com maior procura", report.busiest_weekday || "—"], ["Entregas noutro quiosque", `${network.cross_kiosk_rental_count} (${network.cross_kiosk_percentage}%)`],
+    ["Dias sem bicicletas", String(report.stockout_days)],
   ];
   cards.forEach(([label, value], index) => {
     const col = index % 3, row = Math.floor(index / 3), x = 14 + col * 62, y = 54 + row * 29;
@@ -140,6 +152,29 @@ export function createRentalAnalyticsPdf(report: RentalAnalyticsReport, from: st
     theme: "striped", margin: { left: 14, right: 14, top: 28, bottom: 18 },
     headStyles: { fillColor: dark, textColor: 255 }, alternateRowStyles: { fillColor: light },
     styles: { font: "helvetica", fontSize: 9, cellPadding: 3 },
+  });
+
+  doc.addPage();
+  doc.setTextColor(...dark).setFont("helvetica", "bold").setFontSize(16).text("Rede de quiosques e balanceamento", 14, 38);
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...grey);
+  doc.text(`${network.cross_kiosk_rental_count} alugueres (${network.cross_kiosk_percentage}%) terminaram num quiosque diferente.`, 14, 45);
+  autoTable(doc, {
+    startY: 52,
+    head: [["Origem", "Entrega", "Alugueres", "Bicicletas", "Acessórios"]],
+    body: network.routes.length ? network.routes.map((item)=>[item.origin_name,item.destination_name,item.rental_count,item.bicycle_count,item.accessory_count]) : [["Sem percursos entre quiosques", "—", "—", "—", "—"]],
+    theme: "striped", margin: { left: 14, right: 14, top: 28, bottom: 18 },
+    headStyles: { fillColor: yellow, textColor: dark }, alternateRowStyles: { fillColor: light },
+    styles: { font: "helvetica", fontSize: 8.5, cellPadding: 2.5 },
+  });
+  const balanceY=((doc as any).lastAutoTable?.finalY||70)+10;
+  doc.setTextColor(...dark).setFont("helvetica", "bold").setFontSize(12).text("Saldo de bicicletas por quiosque",14,balanceY);
+  autoTable(doc, {
+    startY: balanceY+4,
+    head: [["Quiosque", "Saíram", "Entraram", "Saldo", "Disponíveis agora"]],
+    body: network.balances.map((item)=>[item.name,item.network_out,item.network_in,item.net_change>0?`+${item.net_change}`:item.net_change,item.current_available]),
+    theme: "grid", margin: { left: 14, right: 14, top: 28, bottom: 18 },
+    headStyles: { fillColor: dark, textColor: 255 }, alternateRowStyles: { fillColor: light },
+    styles: { font: "helvetica", fontSize: 8.5, cellPadding: 2.5 },
   });
 
   doc.addPage();

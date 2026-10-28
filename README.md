@@ -1,8 +1,13 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.6.0
+## Versão 2.6.1
 
 Esta versão reúne o controlo operacional da 2.5.3 e o programa de pontos da 2.6. Mantém as otimizações da 2.5.2 e acrescenta diagnóstico de incongruências, histórico das tarefas automáticas, repetição de emails falhados, monitorização de desempenho, número MOVE para clientes, rankings internos, campanhas e prémios.
+
+- Os alugueres concluídos mostram agora o quiosque de origem e todos os quiosques de entrega.
+- A operação passa a ver os percursos entre quiosques, as bicicletas que entraram e saíram e o saldo por local para apoiar o balanceamento.
+- O relatório de gestão mede a percentagem de alugueres em rede, os percursos mais utilizados e inclui esta análise no PDF.
+- Os acessórios mantêm-se na visão de percursos; o saldo operacional é calculado apenas sobre bicicletas.
 
 - Novo menu **Controlo operacional** para alugueres anormalmente longos, estados incompatíveis, fechos em falta, cauções a terminar e quiosques sem bicicletas disponíveis.
 - Histórico da execução automática dos emails e possibilidade de recolocar um envio falhado na fila.

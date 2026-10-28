@@ -41,7 +41,7 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `028_automatic_gamification.sql`.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `029_kiosk_network_flows.sql`.
 6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
@@ -223,4 +223,12 @@ Se já executou anteriormente a migração `027`, execute também uma única vez
 `supabase/migrations/028_automatic_gamification.sql`
 
 Esta correção retira a adesão opcional e inclui automaticamente no programa todos os clientes frequentes e utilizadores do Cartão Escolar, incluindo os registos já existentes.
+
+# Atualização 2.6.1 — rede de quiosques e balanceamento
+
+Depois de instalar a versão 2.6.1, execute uma única vez:
+
+`supabase/migrations/029_kiosk_network_flows.sql`
+
+A migração cria os indicadores de viagens entre quiosques. A aplicação passa a mostrar a origem e a entrega nos alugueres concluídos, os percursos mais utilizados, a percentagem de alugueres que terminam noutro quiosque e o saldo de bicicletas por local. Um saldo negativo sinaliza uma potencial necessidade de reposição; um saldo positivo sinaliza acumulação.
 

@@ -37,7 +37,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       if(!profiles[0])return err("Cliente não encontrado.",404);
       const [auths,rentals,redemptions]=await Promise.all([
         db(ctx,`deposit_authorizations?customer_profile_id=eq.${q(parts[2])}&select=*&order=authorized_at.desc`),
-        db(ctx,`rentals?customer_profile_id=eq.${q(parts[2])}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=200`),
+        db(ctx,`rentals?customer_profile_id=eq.${q(parts[2])}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type),return_kiosk:kiosks(name))&order=started_at.desc&limit=200`),
         db(ctx,`gamification_redemptions?customer_profile_id=eq.${q(parts[2])}&select=*,reward:gamification_rewards(name)&order=awarded_at.desc`),
       ]);
       const completed=rentals.filter((r:any)=>r.status==="Concluído"),latest=auths[0]||null;
@@ -74,7 +74,7 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
       ]);
       const completed=activityRows;
       const activity={rental_count:completed.length,estimated_distance_km:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_distance_km||0),0),estimated_co2_kg:completed.reduce((sum:number,r:any)=>sum+Number(r.estimated_co2_kg||0),0)};
-      const rentals=includeHistory?await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type))&order=started_at.desc&limit=100`):undefined;
+      const rentals=includeHistory?await db(ctx,`rentals?customer_profile_id=eq.${q(profiles[0].id)}&status=neq.Anulado&select=id,reference,status,started_at,returned_at,estimated_distance_km,estimated_co2_kg,start_kiosk:kiosks(name),items:rental_items(id,bike:bikes(code,asset_type),return_kiosk:kiosks(name))&order=started_at.desc&limit=100`):undefined;
       const pointDays=new Map<string,number>();for(const row of completed){const key=String(row.returned_at||"").slice(0,10);pointDays.set(key,(pointDays.get(key)||0)+Number(row.estimated_distance_km||0))}const earned=[...pointDays.values()].reduce((sum,km)=>sum+10+Math.min(30,Math.floor(km)),0),spent=redemptions.reduce((sum:number,row:any)=>sum+Number(row.points_spent||0),0),points={earned,spent,available:Math.max(0,earned-spent),level:earned>=750?"Embaixador":earned>=300?"Explorador":earned>=100?"Pedalante":"Iniciante"};
       return json({profile:{...profiles[0],masked_nif:`*** *** ${String(profiles[0].nif).slice(-3)}`,nif:undefined,active_authorization:active,last_authorization:latest,activity,points,rentals,history_loaded:includeHistory}});
     }
@@ -141,6 +141,12 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
     }
     if (parts[0] === "rentals" && ctx.user.role === "manutencao")
       return err("O perfil de manutenção não tem acesso aos alugueres.", 403);
+    if (route === "/rentals/network" && request.method === "GET") {
+      const url=new URL(request.url),from=url.searchParams.get("from"),to=url.searchParams.get("to"),validDate=(value:string|null)=>!value||/^\d{4}-\d{2}-\d{2}$/.test(value);
+      if(!validDate(from)||!validDate(to)||from&&to&&from>to)return err("O período selecionado não é válido.");
+      const network=await db(ctx,"rpc/rental_network_analytics",{method:"POST",body:JSON.stringify({p_from:from||null,p_to:to||null})});
+      return json({network});
+    }
     if (route === "/rentals" && request.method === "GET") {
       const url=new URL(request.url),historySearch=String(url.searchParams.get("q")||"").trim().replace(/[%*_(),.]/g,"").slice(0,80),fromDate=url.searchParams.get("from")||"",toDate=url.searchParams.get("to")||"",{page:historyPage,pageSize:historyPageSize,from:historyFrom,to:historyTo}=pagination(request,50,100);
       const validDate=(value:string)=>!value||/^\d{4}-\d{2}-\d{2}$/.test(value);

@@ -308,10 +308,11 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       if (!validDate(from) || !validDate(to) || (from && to && from > to))
         return err("O período selecionado não é válido.");
       const parameters = JSON.stringify({ p_from: from || null, p_to: to || null });
-      const [analytics, payments, kioskItemBreakdown] = await Promise.all([
+      const [analytics, payments, kioskItemBreakdown, network] = await Promise.all([
         db(ctx, "rpc/rental_management_analytics", { method: "POST", body: parameters }),
         db(ctx, "rpc/rental_payment_analytics", { method: "POST", body: parameters }),
         db(ctx, "rpc/rental_kiosk_item_breakdown", { method: "POST", body: parameters }),
+        db(ctx, "rpc/rental_network_analytics", { method: "POST", body: parameters }),
       ]);
       const itemBreakdown = new Map(
         (Array.isArray(kioskItemBreakdown) ? kioskItemBreakdown : []).map((item: any) => [String(item.id), item]),
@@ -320,7 +321,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         const totals: any = itemBreakdown.get(String(kiosk.id)) || {};
         return { ...kiosk, bicycle_count: Number(totals.bicycle_count || 0), accessory_count: Number(totals.accessory_count || 0), item_count: Number(totals.item_count || 0) };
       });
-      return json({ analytics: { ...analytics, ...payments, kiosks } });
+      return json({ analytics: { ...analytics, ...payments, kiosks, network } });
     }
   return null;
 }

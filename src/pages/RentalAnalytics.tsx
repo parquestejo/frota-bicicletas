@@ -22,6 +22,7 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
   if (error) return <p className="error">{error}</p>;
   if (!data) return <section className="card"><p>A calcular indicadores…</p></section>;
   const report = data.analytics;
+  const network = report.network || {rental_count:0,cross_kiosk_rental_count:0,same_kiosk_rental_count:0,cross_kiosk_percentage:0,routes:[],balances:[]};
   return <section className="rental-analytics">
     <div className="title report-title">
       <div><h2>Informação de gestão</h2><p>Procura, utilização, receita e períodos sem disponibilidade.</p></div>
@@ -39,6 +40,7 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
           ["Alugueres pagos", report.paid_rental_count], ["Alugueres gratuitos", report.free_rental_count],
           ["Histórico sem classificação de valor", report.unclassified_rental_count],
           ["Duração média", duration(report.average_duration_minutes)], ["Dia da semana com maior procura", report.busiest_weekday],
+          ["Alugueres com entrega noutro quiosque", network.cross_kiosk_rental_count], ["Percentagem de utilização em rede", `${Number(network.cross_kiosk_percentage||0).toFixed(1)}%`],
           ["Dias sem bicicletas disponíveis", report.stockout_days], ["Tempo sem disponibilidade", duration(report.stockout_minutes)],
         ])}>Exportar dados (CSV)</button>
       </div>
@@ -52,6 +54,7 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
       <div className="card"><span>Alugueres gratuitos</span><b>{report.free_rental_count}</b></div>
       <div className="card"><span>Duração média</span><b>{duration(report.average_duration_minutes)}</b></div>
       <div className="card"><span>Dia com maior procura</span><b className="textual-kpi">{report.busiest_weekday}</b></div>
+      <div className="card"><span>Entregas noutro quiosque</span><b>{network.cross_kiosk_rental_count}</b><small>{Number(network.cross_kiosk_percentage||0).toLocaleString("pt-PT")}% dos alugueres concluídos</small></div>
       <div className="card alert-kpi"><span>Dias sem bicicletas</span><b>{report.stockout_days}</b><small>{duration(report.stockout_minutes)} no total</small></div>
     </div>
     <div className="grid2 analytics-grid">
@@ -64,6 +67,15 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
       </tbody></table></div></section>
       <section className="card"><h3>Itens mais procurados</h3>{report.asset_types.length ? report.asset_types.map((item) => <div className="row" key={item.asset_type}><span>{assetNames[item.asset_type] || item.asset_type}</span><b>{item.item_count}</b></div>) : <p className="muted">Sem alugueres no período.</p>}</section>
     </div>
+    <section className="card">
+      <h3>Utilização da rede de quiosques</h3>
+      <p className="muted">Percursos em que pelo menos uma bicicleta foi entregue num quiosque diferente do local de saída.</p>
+      <div className="grid2 analytics-grid">
+        <div><h4>Percursos entre quiosques</h4><div className="table-wrap"><table><thead><tr><th>Origem</th><th>Entrega</th><th>Alugueres</th><th>Bicicletas</th><th>Acessórios</th></tr></thead><tbody>{network.routes.map((item)=><tr key={`${item.origin_id}-${item.destination_id}`}><td>{item.origin_name}</td><td>{item.destination_name}</td><td>{item.rental_count}</td><td>{item.bicycle_count}</td><td>{item.accessory_count}</td></tr>)}{!network.routes.length&&<tr><td colSpan={5} className="muted">Sem entregas noutro quiosque no período.</td></tr>}</tbody></table></div></div>
+        <div><h4>Impacto no balanceamento</h4><div className="table-wrap"><table><thead><tr><th>Quiosque</th><th>Saíram</th><th>Entraram</th><th>Saldo</th><th>Disponíveis agora</th></tr></thead><tbody>{network.balances.map((item)=><tr key={item.id}><td>{item.name}</td><td>{item.network_out}</td><td>{item.network_in}</td><td><b>{item.net_change>0?`+${item.net_change}`:item.net_change}</b></td><td>{item.current_available}</td></tr>)}</tbody></table></div></div>
+      </div>
+      <p className="muted">Um saldo negativo indica necessidade potencial de reposição; um saldo positivo indica acumulação de bicicletas.</p>
+    </section>
     <section className="card stockout-report">
       <h3>Períodos sem bicicletas disponíveis</h3>
       <p className="muted">Registados automaticamente a partir da instalação desta funcionalidade. “Capacidade mista” significa que existiam bicicletas alugadas e outras fora de serviço.</p>
