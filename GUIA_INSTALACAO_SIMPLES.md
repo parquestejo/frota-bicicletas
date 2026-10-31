@@ -238,6 +238,14 @@ Esta versão acrescenta o ícone de bicicleta com as cores da Parques Tejo e a c
 
 Num iPhone onde a aplicação já esteja guardada, remova o atalho antigo e volte a escolher **Partilhar → Adicionar ao ecrã principal** para o novo ícone aparecer imediatamente.
 
+# Atualização 2.7.1 — correção do fim de semana de Halloween
+
+Se já executou a migração 030 da versão 2.7.0, execute uma única vez:
+
+`supabase/migrations/031_correct_halloween_weekend.sql`
+
+Esta correção ativa a campanha durante os dias completos de **31 de outubro e 1 de novembro de 2026**, terminando às 00h00 de 2 de novembro.
+
 # Atualização 2.7.0 — campanhas comerciais temporárias
 
 Depois de instalar a versão 2.7.0, execute uma única vez:

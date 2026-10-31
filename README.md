@@ -1,6 +1,9 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.7.0
+## Versão 2.7.1
+
+Correção da campanha de Halloween: válida durante os dias completos de **31 de outubro e 1 de novembro de 2026**.
+As campanhas podem agora ser editadas diretamente na área administrativa, incluindo datas, benefício e condições.
 
 Esta versão reúne o controlo operacional da 2.5.3 e o programa de pontos da 2.6. Mantém as otimizações da 2.5.2 e acrescenta diagnóstico de incongruências, histórico das tarefas automáticas, repetição de emails falhados, monitorização de desempenho, número MOVE para clientes, rankings internos, campanhas e prémios.
 

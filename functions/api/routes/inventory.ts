@@ -37,8 +37,16 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
     if(parts[0]==="catalog"&&parts[1]==="campaigns"&&parts[2]&&request.method==="PATCH"){
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
       const current=(await db(ctx,`commercial_campaigns?id=eq.${q(parts[2])}&select=*&limit=1`))[0];if(!current)return err("Campanha não encontrada.",404);
-      const b=await body(request),rows=await db(ctx,`commercial_campaigns?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify({active:b.active===true,updated_at:new Date().toISOString()})});
-      await audit(ctx,b.active===true?"ativar":"desativar","campanha comercial",parts[2],current,rows[0]);return json(rows[0]);
+      const b=await body(request);
+      if(Object.keys(b).length===1&&typeof b.active==="boolean"){
+        const rows=await db(ctx,`commercial_campaigns?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify({active:b.active,updated_at:new Date().toISOString()})});
+        await audit(ctx,b.active?"ativar":"desativar","campanha comercial",parts[2],current,rows[0]);return json(rows[0]);
+      }
+      const name=String(b.name??current.name).trim(),description=String(b.description??current.description??"").trim(),starts=new Date(String(b.starts_at??current.starts_at)),ends=new Date(String(b.ends_at??current.ends_at)),benefitType=String(b.benefit_type??current.benefit_type),benefitValue=Number(b.benefit_value??current.benefit_value),maxItems=Number(b.max_items??current.max_items),category=String(b.applies_to_category??current.applies_to_category),confirmation=String(b.confirmation_label??current.confirmation_label).trim();
+      if(name.length<2||!Number.isFinite(starts.getTime())||!Number.isFinite(ends.getTime())||ends<=starts||!["free_hours","percentage","fixed_discount","free_rental"].includes(benefitType)||!Number.isFinite(benefitValue)||benefitValue<0||benefitType==="percentage"&&benefitValue>100||benefitType==="free_hours"&&(benefitValue<1||!Number.isInteger(benefitValue))||!Number.isSafeInteger(maxItems)||maxItems<1||maxItems>100||!["bicycle","accessory","all"].includes(category)||confirmation.length<3)return err("Preencha corretamente os dados da campanha.");
+      const changes={name,description:description||null,starts_at:starts.toISOString(),ends_at:ends.toISOString(),benefit_type:benefitType,benefit_value:benefitValue,applies_to_category:category,max_items:maxItems,confirmation_label:confirmation,active:typeof b.active==="boolean"?b.active:current.active,updated_at:new Date().toISOString()};
+      const rows=await db(ctx,`commercial_campaigns?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify(changes)});
+      await audit(ctx,"editar","campanha comercial",parts[2],current,rows[0]);return json(rows[0]);
     }
     if (route === "/dashboard" && request.method === "GET") {
       const includeManagement = new URL(request.url).searchParams.get("management") === "1";

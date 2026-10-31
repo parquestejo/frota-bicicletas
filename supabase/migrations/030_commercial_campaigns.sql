@@ -29,9 +29,9 @@ create index if not exists rentals_commercial_campaign_idx on rentals(commercial
 
 insert into commercial_campaigns(name,description,starts_at,ends_at,benefit_type,benefit_value,applies_to_category,max_items,confirmation_label)
 select 'Halloween — 1 hora gratuita','Uma bicicleta com a primeira hora gratuita para clientes mascarados.',
-  '2026-10-30 00:00:00 Europe/Lisbon'::timestamptz,'2026-11-01 00:00:00 Europe/Lisbon'::timestamptz,
+  '2026-10-31 00:00:00 Europe/Lisbon'::timestamptz,'2026-11-02 00:00:00 Europe/Lisbon'::timestamptz,
   'free_hours',1,'bicycle',1,'Confirmo que o cliente se apresentou mascarado'
-where not exists(select 1 from commercial_campaigns where name='Halloween — 1 hora gratuita' and starts_at='2026-10-30 00:00:00 Europe/Lisbon'::timestamptz);
+where not exists(select 1 from commercial_campaigns where name='Halloween — 1 hora gratuita' and starts_at='2026-10-31 00:00:00 Europe/Lisbon'::timestamptz);
 
 create or replace function commercial_campaign_discount_for_items(
   p_campaign_id uuid,p_bike_ids uuid[],p_period text,p_hours integer,p_at timestamptz,p_payable numeric
