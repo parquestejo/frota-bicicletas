@@ -6,10 +6,10 @@ import {
 export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: string, parts: string[]) {
     if (route === "/catalog" && request.method === "GET") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
-      const [types, history] = await Promise.all([db(ctx,"equipment_types?select=*&order=name"),db(ctx,"equipment_prices?select=*&order=effective_from.desc,created_at.desc")]);
+      const [types, history, campaigns] = await Promise.all([db(ctx,"equipment_types?select=*&order=name"),db(ctx,"equipment_prices?select=*&order=effective_from.desc,created_at.desc"),db(ctx,"commercial_campaigns?select=*&order=starts_at.desc")]);
       const now=Date.now(),eligible=history.filter((p:any)=>new Date(p.effective_from).getTime()<=now);
       const prices=eligible.filter((p:any,i:number,list:any[])=>list.findIndex((x:any)=>x.asset_type===p.asset_type&&x.period===p.period)===i);
-      return json({types,prices,history});
+      return json({types,prices,history,campaigns});
     }
     if (route === "/catalog/types" && request.method === "POST") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
@@ -26,6 +26,19 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       const effectiveFrom=`${effective}T00:00:00+00:00`;
       const rows=await db(ctx,"equipment_prices",{method:"POST",body:JSON.stringify([{asset_type:b.asset_type,period:"hour",amount:hour,effective_from:effectiveFrom,created_by:ctx.user.id},{asset_type:b.asset_type,period:"day",amount:day,effective_from:effectiveFrom,created_by:ctx.user.id}])});
       await audit(ctx,"publicar","tarifário",String(b.asset_type),null,{hour,day,effective_from:effective}); return json(rows,201);
+    }
+    if (route === "/catalog/campaigns" && request.method === "POST") {
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const b=await body(request),name=String(b.name||"").trim(),description=String(b.description||"").trim(),starts=new Date(String(b.starts_at||"")),ends=new Date(String(b.ends_at||"")),benefitType=String(b.benefit_type||""),benefitValue=Number(b.benefit_value),maxItems=Number(b.max_items),category=String(b.applies_to_category||""),confirmation=String(b.confirmation_label||"").trim();
+      if(name.length<2||!Number.isFinite(starts.getTime())||!Number.isFinite(ends.getTime())||ends<=starts||!["free_hours","percentage","fixed_discount","free_rental"].includes(benefitType)||!Number.isFinite(benefitValue)||benefitValue<0||benefitType==="percentage"&&benefitValue>100||benefitType==="free_hours"&&(benefitValue<1||!Number.isInteger(benefitValue))||!Number.isSafeInteger(maxItems)||maxItems<1||maxItems>100||!["bicycle","accessory","all"].includes(category)||confirmation.length<3)return err("Preencha corretamente os dados da campanha.");
+      const rows=await db(ctx,"commercial_campaigns",{method:"POST",body:JSON.stringify({name,description:description||null,starts_at:starts.toISOString(),ends_at:ends.toISOString(),benefit_type:benefitType,benefit_value:benefitValue,applies_to_category:category,max_items:maxItems,confirmation_label:confirmation,created_by:ctx.user.id})});
+      await audit(ctx,"criar","campanha comercial",rows[0].id,null,rows[0]);return json(rows[0],201);
+    }
+    if(parts[0]==="catalog"&&parts[1]==="campaigns"&&parts[2]&&request.method==="PATCH"){
+      if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
+      const current=(await db(ctx,`commercial_campaigns?id=eq.${q(parts[2])}&select=*&limit=1`))[0];if(!current)return err("Campanha não encontrada.",404);
+      const b=await body(request),rows=await db(ctx,`commercial_campaigns?id=eq.${q(parts[2])}`,{method:"PATCH",body:JSON.stringify({active:b.active===true,updated_at:new Date().toISOString()})});
+      await audit(ctx,b.active===true?"ativar":"desativar","campanha comercial",parts[2],current,rows[0]);return json(rows[0]);
     }
     if (route === "/dashboard" && request.method === "GET") {
       const includeManagement = new URL(request.url).searchParams.get("management") === "1";
@@ -292,7 +305,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       if(!validDate(fromDate)||!validDate(toDate)||fromDate&&toDate&&fromDate>toDate)return err("O período selecionado não é válido.");
       const dateColumn=kind==="rentals"?"started_at":"created_at",filters=`${fromDate?`&${dateColumn}=gte.${q(fromDate+"T00:00:00Z")}`:""}${toDate?`&${dateColumn}=lte.${q(toDate+"T23:59:59Z")}`:""}`;
       const query=kind==="rentals"
-        ? `rentals?status=eq.${q("Concluído")}&select=*,start_kiosk:kiosks(*),customer_profile:customer_profiles(id,kind,name,school),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))${filters}&order=started_at.desc`
+        ? `rentals?status=eq.${q("Concluído")}&select=*,start_kiosk:kiosks(*),customer_profile:customer_profiles(id,kind,name,school),commercial_campaign:commercial_campaigns(*),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(*,bike:bikes(*),return_kiosk:kiosks(*),returned_by_user:users!rental_items_returned_by_fkey(full_name))${filters}&order=started_at.desc`
         : `faults?select=*,bike:bikes(*),created_by_user:users!faults_created_by_fkey(full_name)${filters}&order=created_at.desc`;
       const countQuery=kind==="rentals"?`rentals?status=eq.${q("Concluído")}&select=id${filters}`:`faults?select=id${filters}`;
       const [items,total]=await Promise.all([all?dbAll(ctx,query):db(ctx,query,{headers:{Range:`${from}-${to}`}}),dbCount(ctx,countQuery)]);
@@ -308,11 +321,12 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
       if (!validDate(from) || !validDate(to) || (from && to && from > to))
         return err("O período selecionado não é válido.");
       const parameters = JSON.stringify({ p_from: from || null, p_to: to || null });
-      const [analytics, payments, kioskItemBreakdown, network] = await Promise.all([
+      const [analytics, payments, kioskItemBreakdown, network,campaigns] = await Promise.all([
         db(ctx, "rpc/rental_management_analytics", { method: "POST", body: parameters }),
         db(ctx, "rpc/rental_payment_analytics", { method: "POST", body: parameters }),
         db(ctx, "rpc/rental_kiosk_item_breakdown", { method: "POST", body: parameters }),
         db(ctx, "rpc/rental_network_analytics", { method: "POST", body: parameters }),
+        db(ctx,"rpc/commercial_campaign_analytics",{method:"POST",body:parameters}),
       ]);
       const itemBreakdown = new Map(
         (Array.isArray(kioskItemBreakdown) ? kioskItemBreakdown : []).map((item: any) => [String(item.id), item]),
@@ -321,7 +335,7 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         const totals: any = itemBreakdown.get(String(kiosk.id)) || {};
         return { ...kiosk, bicycle_count: Number(totals.bicycle_count || 0), accessory_count: Number(totals.accessory_count || 0), item_count: Number(totals.item_count || 0) };
       });
-      return json({ analytics: { ...analytics, ...payments, kiosks, network } });
+      return json({ analytics: { ...analytics, ...payments, kiosks, network,campaigns } });
     }
   return null;
 }

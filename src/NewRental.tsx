@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, post } from "./api";
-import type { Bike, CustomerProfile, EquipmentPrice, EquipmentType, Kiosk, User } from "./types";
+import type { Bike, CommercialCampaign, CustomerProfile, EquipmentPrice, EquipmentType, Kiosk, User } from "./types";
 import { SCHOOLS } from "./schools";
+import { commercialCampaignDiscount } from "./domain";
 
 type RentalKind = "normal" | "resident" | "institutional" | "frequent" | "school";
 type RentalPeriod = "hour" | "day";
@@ -17,6 +18,7 @@ export function NewRental({ user }: { user: User }) {
       kiosks: Kiosk[];
       equipment_types: EquipmentType[];
       prices: EquipmentPrice[];
+      active_campaigns: CommercialCampaign[];
     } | null>(null),
     [loadError, setLoadError] = useState(""),
     [message, setMessage] = useState(""),
@@ -33,6 +35,8 @@ export function NewRental({ user }: { user: User }) {
     [profileEmail, setProfileEmail] = useState(""),
     [profileVerified, setProfileVerified] = useState(false),
     [adultPresent, setAdultPresent] = useState(false),
+    [commercialCampaignId,setCommercialCampaignId]=useState(""),
+    [commercialCampaignConfirmed,setCommercialCampaignConfirmed]=useState(false),
     [authorizationCode, setAuthorizationCode] = useState(""),
     [rentalAuthorizationCode, setRentalAuthorizationCode] = useState(""),
     [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null),
@@ -42,7 +46,7 @@ export function NewRental({ user }: { user: User }) {
     [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<{ available_bikes: Bike[]; kiosks: Kiosk[]; equipment_types: EquipmentType[]; prices: EquipmentPrice[] }>("/rentals")
+    api<{ available_bikes: Bike[]; kiosks: Kiosk[]; equipment_types: EquipmentType[]; prices: EquipmentPrice[]; active_campaigns:CommercialCampaign[] }>("/rentals")
       .then(setData)
       .catch((e) => setLoadError(e.message));
   }, []);
@@ -83,6 +87,7 @@ export function NewRental({ user }: { user: User }) {
       setMessage("O Cartão Escolar permite uma bicicleta e, opcionalmente, um capacete gratuito.");
       return;
     }
+    if(activeCampaign&&!commercialCampaignConfirmed){setMessage("Confirme a condição da campanha comercial.");return;}
     setBusy(true);
     try {
       await post("/rentals", {
@@ -101,6 +106,8 @@ export function NewRental({ user }: { user: User }) {
         customer_profile_id: customerProfile?.id || null,
         deposit_authorization_id: kind === "frequent" ? customerProfile?.active_authorization?.id || null : null,
         authorization_code: effectiveAuthorizationCode || null,
+        commercial_campaign_id: activeCampaign?.id || null,
+        commercial_campaign_confirmed: !!activeCampaign&&commercialCampaignConfirmed,
       });
       navigate("/alugueres");
     } catch (e) {
@@ -118,10 +125,14 @@ export function NewRental({ user }: { user: User }) {
   const definition = (type:string) => data?.equipment_types.find(item => item.code === type);
   const commercialAmount = Math.round(chosen.reduce((sum, item) => sum + durationPrice(item.asset_type), 0) * 100) / 100;
   const helmetBenefit = chosen.filter((item)=>item.asset_type === "helmet").reduce((sum,item)=>sum+durationPrice(item.asset_type),0);
-  const payableAmountRaw = kind === "institutional" || kind === "school" ? 0 : kind === "resident"
+  const basePayableAmountRaw = kind === "institutional" || kind === "school" ? 0 : kind === "resident"
     ? chosen.filter((item) => !definition(item.asset_type)?.resident_free).reduce((sum, item) => sum + durationPrice(item.asset_type), 0)
     : kind === "frequent" ? Math.max(0, commercialAmount - helmetBenefit)
     : commercialAmount;
+  const activeCampaign=!['institutional','school'].includes(kind)?data?.active_campaigns?.find(item=>item.id===commercialCampaignId):undefined;
+  const eligibleCampaignItems=activeCampaign?chosen.filter(item=>activeCampaign.applies_to_category==="all"||definition(item.asset_type)?.category===activeCampaign.applies_to_category).map(item=>({duration:durationPrice(item.asset_type),hour:price(item.asset_type,"hour"),day:price(item.asset_type,"day")})):[];
+  const campaignDiscount=!activeCampaign||!commercialCampaignConfirmed?0:commercialCampaignDiscount(basePayableAmountRaw,activeCampaign.benefit_type,Number(activeCampaign.benefit_value),eligibleCampaignItems,activeCampaign.max_items,period,hours);
+  const payableAmountRaw=Math.max(0,basePayableAmountRaw-campaignDiscount);
   const payableAmount = Math.round(payableAmountRaw * 100) / 100;
   const depositAmount = kind === "institutional" || (kind === "frequent" && customerProfile?.active_authorization) ? 0 : chosen.reduce((sum,item)=>sum+Number(definition(item.asset_type)?.deposit_amount || 0),0);
 
@@ -227,6 +238,7 @@ export function NewRental({ user }: { user: User }) {
               ))}
             </select>
           </label>
+          {!['institutional','school'].includes(kind)&&data.active_campaigns?.length>0&&<fieldset className="resident-benefit"><legend>Campanha comercial</legend><label>Campanha<select value={commercialCampaignId} onChange={e=>{setCommercialCampaignId(e.target.value);setCommercialCampaignConfirmed(false)}}><option value="">Não aplicar campanha</option>{data.active_campaigns.map(campaign=><option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>{activeCampaign&&<><p>{activeCampaign.description}</p><label className="check-line"><input type="checkbox" checked={commercialCampaignConfirmed} onChange={e=>setCommercialCampaignConfirmed(e.target.checked)}/><span>{activeCampaign.confirmation_label}</span></label>{commercialCampaignConfirmed&&<div className="notice"><b>Benefício aplicado: {money(campaignDiscount)}</b><br/><small>O tarifário normal mantém-se registado para efeitos de relatório.</small></div>}</>}</fieldset>}
           <div className="notice"><b>{kind === "institutional" ? "Utilização institucional — sem cobrança" : kind === "school" ? "Cartão Escolar — utilização gratuita" : `Total a cobrar: ${money(payableAmount)}`}</b><br/>{kind === "institutional" ? "Caução dispensada" : kind === "frequent" && customerProfile?.active_authorization ? `Pré-autorização ativa até ${new Date(customerProfile.active_authorization.expires_at).toLocaleDateString("pt-PT")}` : `Caução a solicitar: ${money(depositAmount)}`}<br/><small>A bicicleta pode ser devolvida em qualquer Quiosque de Mobilidade.</small></div>
           <fieldset aria-invalid={!!message && !selected.length}>
             <legend>Bicicletas e acessórios disponíveis</legend>

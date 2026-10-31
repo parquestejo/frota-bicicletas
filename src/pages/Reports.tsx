@@ -20,6 +20,8 @@ export function Reports() {
       Number(r.charged_amount || 0).toFixed(2),
       Number(r.expected_amount || 0).toFixed(2),
       Number(r.discount_amount || 0).toFixed(2),
+      r.commercial_campaign?.name || "",
+      Number(r.commercial_campaign_discount || 0).toFixed(2),
       r.institutional_entity || "",
       r.institutional_person || "",
       i.bike?.code,
@@ -55,7 +57,7 @@ export function Reports() {
     setExportBusy(true);
     try{
       const result=await api<{rentals?:Rental[];faults?:Fault[]}>(`/reports/data?kind=${tab}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}&all=1`);
-      if(tab==="rentals")exportCSV("alugueres-concluidos.csv",["Referência","Cliente","Tipo de utilização","Valor Multibanco (€)","Valor comercial (€)","Benefício/desconto (€)","Entidade institucional","Pessoa que levantou","Item","Tipo","Quiosque de saída","Quiosque de devolução","Início","Devolução","Registado por","Devolvido por","Anomalia","Descrição da anomalia","Caução retida (€)","Motivo da retenção","Distância estimada (km)","CO₂ evitado estimado (kg)"],rentalRowsFor(result.rentals||[]));
+      if(tab==="rentals")exportCSV("alugueres-concluidos.csv",["Referência","Cliente","Tipo de utilização","Valor Multibanco (€)","Valor comercial (€)","Benefício/desconto (€)","Campanha comercial","Desconto da campanha (€)","Entidade institucional","Pessoa que levantou","Item","Tipo","Quiosque de saída","Quiosque de devolução","Início","Devolução","Registado por","Devolvido por","Anomalia","Descrição da anomalia","Caução retida (€)","Motivo da retenção","Distância estimada (km)","CO₂ evitado estimado (kg)"],rentalRowsFor(result.rentals||[]));
       else exportCSV("avarias.csv",["Item","Tipo","Origem","Categoria","Descrição","Gravidade","Utilizável","Estado","Data","Registado por","Notas"],faultRowsFor(result.faults||[]));
     }finally{setExportBusy(false)}
   }
@@ -113,6 +115,7 @@ export function Reports() {
                   <th>Referência</th>
                   <th>Cliente</th>
                   <th>Utilização</th>
+                  <th>Campanha</th>
                   <th>Valor</th>
                   <th>Valor comercial</th>
                   <th>Item</th>
@@ -135,6 +138,7 @@ export function Reports() {
                       </td>
                       <td>{r.customer_ref}</td>
                       <td>{r.rental_kind === "institutional" ? `Institucional · ${r.institutional_entity}` : r.rental_kind === "resident" ? "Residente" : r.rental_kind === "frequent" ? "Cliente frequente" : r.rental_kind === "school" ? `Cartão Escolar · ${r.customer_profile?.school || "—"}` : "Normal"}</td>
+                      <td>{r.commercial_campaign?.name||"—"}{r.commercial_campaign_id&&<small className="block-meta">Desconto: {new Intl.NumberFormat("pt-PT",{style:"currency",currency:"EUR"}).format(Number(r.commercial_campaign_discount||0))}</small>}</td>
                       <td>{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(r.charged_amount || 0))}</td>
                       <td>{new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(r.expected_amount || 0))}</td>
                       <td>{i.bike?.code}</td>

@@ -41,7 +41,7 @@ Execute os ficheiros pela ordem indicada:
 2. No computador, abra `supabase/migrations/001_initial.sql` com o Bloco de Notas.
 3. Prima `Ctrl + A`, depois `Ctrl + C`.
 4. Volte ao Supabase, cole o texto na caixa grande e clique em **Run**.
-5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `029_kiosk_network_flows.sql`.
+5. Depois da mensagem de sucesso, abra uma nova query e execute, pela ordem numérica, os restantes ficheiros da pasta `supabase/migrations`, de `002_operations.sql` até `030_commercial_campaigns.sql`.
 6. No final das migrações, execute uma única vez `supabase/seed.sql` para criar os dois quiosques, 20 bicicletas elétricas e 10 convencionais.
 
 O sistema não cria nem repõe automaticamente capacetes ou cadeados. Esses artigos são geridos no menu **Frota**, como os restantes itens.
@@ -237,4 +237,14 @@ A migração cria os indicadores de viagens entre quiosques. A aplicação passa
 Esta versão acrescenta o ícone de bicicleta com as cores da Parques Tejo e a configuração de instalação no ecrã principal. Não exige qualquer migração da base de dados: basta publicar novamente a aplicação.
 
 Num iPhone onde a aplicação já esteja guardada, remova o atalho antigo e volte a escolher **Partilhar → Adicionar ao ecrã principal** para o novo ícone aparecer imediatamente.
+
+# Atualização 2.7.0 — campanhas comerciais temporárias
+
+Depois de instalar a versão 2.7.0, execute uma única vez:
+
+`supabase/migrations/030_commercial_campaigns.sql`
+
+A migração cria o módulo de campanhas comerciais, associa o benefício aplicado a cada aluguer e prepara a campanha **Halloween — 1 hora gratuita**. Durante o período ativo, o vigilante seleciona a campanha e confirma que o cliente se apresentou mascarado. A caução e o código de autorização mantêm-se obrigatórios.
+
+As datas, condições, equipamentos abrangidos e tipo de benefício podem ser configurados em **Administração → Catálogo e preços → Campanhas comerciais**. Se a campanha de Halloween já tiver terminado quando a migração for executada, crie uma nova campanha com as datas pretendidas.
 

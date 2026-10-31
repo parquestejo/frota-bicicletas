@@ -157,9 +157,9 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         ctx.user.role === "admin" ? "" : `&created_by=eq.${q(ctx.user.id)}`;
       // Este ecrã é operacional: enviar apenas os campos efetivamente usados
       // evita transferir centenas de registos e relações completas em cada visita.
-      const rentalSelect = "select=id,reference,customer_ref,customer_contact,start_kiosk_id,status,started_at,started_by,returned_at,returned_by,charged_amount,rental_kind,rental_period,rental_hours,expected_amount,discount_amount,institutional_entity,institutional_person,authorization_code,customer_profile_id,deposit_authorization_id,estimated_distance_km,estimated_co2_kg,corrected_at,correction_reason,start_kiosk:kiosks(id,name),customer_profile:customer_profiles(id,kind,name,school),deposit_authorization:deposit_authorizations(id,authorization_code,amount,authorized_at,expires_at,status),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(id,rental_id,bike_id,returned_at,returned_by,return_kiosk_id,anomaly,anomaly_description,deposit_retained,deposit_retention_reason,bike:bikes(id,code,asset_type,model,kiosk_id,status,active),return_kiosk:kiosks(id,name),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
+      const rentalSelect = "select=id,reference,customer_ref,customer_contact,start_kiosk_id,status,started_at,started_by,returned_at,returned_by,charged_amount,rental_kind,rental_period,rental_hours,expected_amount,discount_amount,institutional_entity,institutional_person,authorization_code,customer_profile_id,deposit_authorization_id,commercial_campaign_id,commercial_campaign_discount,commercial_campaign_confirmed,estimated_distance_km,estimated_co2_kg,corrected_at,correction_reason,start_kiosk:kiosks(id,name),customer_profile:customer_profiles(id,kind,name,school),deposit_authorization:deposit_authorizations(id,authorization_code,amount,authorized_at,expires_at,status),commercial_campaign:commercial_campaigns(id,name,description,benefit_type,benefit_value,applies_to_category,max_items,confirmation_label),started_by_user:users!rentals_started_by_fkey(full_name),returned_by_user:users!rentals_returned_by_fkey(full_name),items:rental_items(id,rental_id,bike_id,returned_at,returned_by,return_kiosk_id,anomaly,anomaly_description,deposit_retained,deposit_retention_reason,bike:bikes(id,code,asset_type,model,kiosk_id,status,active),return_kiosk:kiosks(id,name),returned_by_user:users!rental_items_returned_by_fkey(full_name))";
       const historyFilters=`&status=in.(${q("Concluído")},Anulado)${owner}${fromDate?`&started_at=gte.${q(fromDate+"T00:00:00Z")}`:""}${toDate?`&started_at=lte.${q(toDate+"T23:59:59Z")}`:""}${historySearch?`&or=(reference.ilike.*${q(historySearch)}*,customer_ref.ilike.*${q(historySearch)}*)`:""}`;
-      const [openRentals, historyRentals, historyTotal, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices] = await Promise.all([
+      const [openRentals, historyRentals, historyTotal, bikes, correctionBikes, kiosks, discrepancies, summary, equipmentTypes, prices,activeCampaigns] = await Promise.all([
         db(
           ctx,
           `rentals?${rentalSelect}&status=eq.Em%20aberto&order=started_at.desc`,
@@ -185,10 +185,11 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         }),
         db(ctx, "equipment_types?active=eq.true&select=*&order=name"),
         db(ctx, "equipment_prices?effective_from=lte.now()&select=*&order=effective_from.desc"),
+        db(ctx,"commercial_campaigns?active=eq.true&starts_at=lte.now()&ends_at=gt.now()&select=*&order=starts_at"),
       ]);
       const currentPrices = prices.filter((price:any,index:number,list:any[]) => list.findIndex((x:any)=>x.asset_type===price.asset_type&&x.period===price.period)===index);
       const rentals=[...openRentals,...historyRentals];
-      return json({ rentals, history_total:historyTotal,history_page:historyPage,history_page_size:historyPageSize,available_bikes: bikes, correction_bikes: correctionBikes, kiosks, discrepancies, summary, equipment_types: equipmentTypes, prices: currentPrices });
+      return json({ rentals, history_total:historyTotal,history_page:historyPage,history_page_size:historyPageSize,available_bikes: bikes, correction_bikes: correctionBikes, kiosks, discrepancies, summary, equipment_types: equipmentTypes, prices: currentPrices,active_campaigns:activeCampaigns });
     }
     if (parts[0] === "rentals" && parts[1] && parts[2] === "correct" && request.method === "PATCH") {
       if (!allow(ctx, "admin")) return err("Acesso reservado a administradores.", 403);
@@ -279,6 +280,8 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
         return err("Indique a entidade e o nome de quem levantou o equipamento.");
       if (rentalKind !== "institutional" && !String(b.authorization_code || "").trim())
         return err("Indique o código de autorização do talão Multibanco.");
+      const campaignId=String(b.commercial_campaign_id||"").trim()||null,campaignConfirmed=b.commercial_campaign_confirmed===true;
+      if(campaignId&&!campaignConfirmed)return err("Confirme a condição da campanha comercial.");
       const rows = await db(ctx, "rpc/start_rental", {
         method: "POST",
         body: JSON.stringify({
@@ -299,6 +302,8 @@ export async function handleRentalRoutes(ctx: Ctx, request: Request, route: stri
           p_customer_profile_id: b.customer_profile_id || null,
           p_deposit_authorization_id: b.deposit_authorization_id || null,
           p_authorization_code: String(b.authorization_code || "").trim() || null,
+          p_commercial_campaign_id: campaignId,
+          p_commercial_campaign_confirmed: campaignConfirmed,
         }),
       });
       return json(rows, 201);

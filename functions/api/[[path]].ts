@@ -197,6 +197,8 @@ export const onRequest: PagesFunction<Env> = async ({
         invalid_deposit_authorization: ["A caução do cliente não está ativa. Registe uma nova pré-autorização.", 409],
         invalid_school_items: ["O Cartão Escolar permite uma bicicleta e, opcionalmente, um capacete.", 400],
         invalid_charged_amount: ["O valor calculado foi alterado ou está desatualizado. Atualize a página e tente novamente.", 409],
+        invalid_commercial_campaign: ["A campanha já não está ativa ou não se aplica a este aluguer. Atualize a página.", 409],
+        commercial_campaign_confirmation_required: ["Confirme a condição da campanha comercial.", 400],
         duration_must_increase: ["A nova duração tem de ser superior à duração atual.", 400],
         cannot_remove_last_bike: ["O aluguer tem de manter pelo menos uma bicicleta.", 409],
         invalid_return_kiosk: ["Selecione um quiosque válido para a devolução.", 400],

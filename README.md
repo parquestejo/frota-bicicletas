@@ -1,8 +1,14 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
-## Versão 2.6.2
+## Versão 2.7.0
 
 Esta versão reúne o controlo operacional da 2.5.3 e o programa de pontos da 2.6. Mantém as otimizações da 2.5.2 e acrescenta diagnóstico de incongruências, histórico das tarefas automáticas, repetição de emails falhados, monitorização de desempenho, número MOVE para clientes, rankings internos, campanhas e prémios.
+
+- Novo módulo administrativo de campanhas comerciais temporárias, separado das campanhas de pontos.
+- Benefícios configuráveis por horas gratuitas, percentagem, desconto fixo ou aluguer gratuito, com período de validade e confirmação obrigatória do vigilante.
+- Campanha **Halloween — 1 hora gratuita** preparada para uma bicicleta quando o cliente se apresenta mascarado.
+- Em alugueres com mais de uma hora, cobra-se apenas o tempo adicional, mantendo o preço diário como limite máximo.
+- Relatórios identificam a campanha, o valor comercial, o desconto concedido, a receita e o número de utilizações.
 
 - Novo ícone de instalação com bicicleta em cinzento-escuro sobre o amarelo da Parques Tejo.
 - Nome curto **Frota PT** e configuração para instalação no ecrã principal de iPhone e Android.

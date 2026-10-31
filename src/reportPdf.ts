@@ -28,6 +28,7 @@ export type RentalAnalyticsReport = {
   asset_types: { asset_type: string; item_count: number }[];
   stockouts: { id: string; kiosk_name: string; started_at: string; ended_at?: string; rented_count: number; out_of_service_count: number; cause: string; duration_minutes: number }[];
   network: RentalNetworkAnalytics;
+  campaigns: { id:string; name:string; rental_count:number; commercial_value:number; discount_value:number; revenue:number }[];
 };
 
 const yellow: [number, number, number] = [232, 163, 40];
@@ -137,6 +138,18 @@ export function createRentalAnalyticsPdf(report: RentalAnalyticsReport, from: st
     headStyles: { fillColor: yellow, textColor: dark }, alternateRowStyles: { fillColor: light },
     styles: { font: "helvetica", fontSize: 8.5, cellPadding: 2.5 },
   });
+
+  if(report.campaigns?.length){
+    doc.addPage();
+    doc.setTextColor(...dark).setFont("helvetica", "bold").setFontSize(16).text("Campanhas comerciais",14,38);
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...grey).text("Utilizações, valor comercial, benefício concedido e receita efetiva.",14,45);
+    autoTable(doc,{
+      startY:52,
+      head:[["Campanha","Alugueres","Valor comercial","Desconto","Receita"]],
+      body:report.campaigns.map(item=>[item.name,item.rental_count,money(item.commercial_value),money(item.discount_value),money(item.revenue)]),
+      theme:"striped",margin:{left:14,right:14,top:28,bottom:18},headStyles:{fillColor:yellow,textColor:dark},alternateRowStyles:{fillColor:light},styles:{font:"helvetica",fontSize:8.5,cellPadding:2.5}
+    });
+  }
 
   doc.addPage();
   horizontalBars(doc, "Procura por dia da semana", report.weekdays.map((item) => ({ label: item.weekday, value: item.rental_count })), 14, 38, 82);

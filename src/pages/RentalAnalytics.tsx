@@ -42,6 +42,7 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
           ["Duração média", duration(report.average_duration_minutes)], ["Dia da semana com maior procura", report.busiest_weekday],
           ["Alugueres com entrega noutro quiosque", network.cross_kiosk_rental_count], ["Percentagem de utilização em rede", `${Number(network.cross_kiosk_percentage||0).toFixed(1)}%`],
           ["Dias sem bicicletas disponíveis", report.stockout_days], ["Tempo sem disponibilidade", duration(report.stockout_minutes)],
+          ...(report.campaigns||[]).flatMap(item=>[[`Campanha: ${item.name} — utilizações`,item.rental_count],[`Campanha: ${item.name} — desconto`,Number(item.discount_value).toFixed(2)]]),
         ])}>Exportar dados (CSV)</button>
       </div>
     </div>
@@ -76,6 +77,7 @@ export function RentalAnalytics({ from, to }: { from: string; to: string }) {
       </div>
       <p className="muted">Um saldo negativo indica necessidade potencial de reposição; um saldo positivo indica acumulação de bicicletas.</p>
     </section>
+    <section className="card"><h3>Campanhas comerciais</h3><p className="muted">Resultados das promoções aplicadas no período selecionado.</p><div className="table-wrap"><table><thead><tr><th>Campanha</th><th>Alugueres</th><th>Valor comercial</th><th>Desconto concedido</th><th>Receita</th></tr></thead><tbody>{(report.campaigns||[]).map(item=><tr key={item.id}><td>{item.name}</td><td>{item.rental_count}</td><td>{money(item.commercial_value)}</td><td>{money(item.discount_value)}</td><td>{money(item.revenue)}</td></tr>)}{!report.campaigns?.length&&<tr><td colSpan={5} className="muted">Sem campanhas utilizadas neste período.</td></tr>}</tbody></table></div></section>
     <section className="card stockout-report">
       <h3>Períodos sem bicicletas disponíveis</h3>
       <p className="muted">Registados automaticamente a partir da instalação desta funcionalidade. “Capacidade mista” significa que existiam bicicletas alugadas e outras fora de serviço.</p>

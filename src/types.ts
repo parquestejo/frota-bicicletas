@@ -8,6 +8,7 @@ export type BikeStatus =
 export type AssetType = string;
 export interface EquipmentType { code:string; name:string; category:"bicycle"|"accessory"; prefix:string; default_model:string; deposit_amount:number; resident_free:boolean; included:boolean; active:boolean; }
 export interface EquipmentPrice { id:string; asset_type:string; period:"hour"|"day"; amount:number; effective_from:string; created_at:string; }
+export interface CommercialCampaign { id:string; name:string; description?:string; starts_at:string; ends_at:string; benefit_type:"free_hours"|"percentage"|"fixed_discount"|"free_rental"; benefit_value:number; applies_to_category:"bicycle"|"accessory"|"all"; max_items:number; confirmation_label:string; active:boolean; created_at:string; }
 export interface User {
   id: string;
   full_name: string;
@@ -61,6 +62,10 @@ export interface Rental {
   charged_amount: number;
   expected_amount?: number;
   discount_amount?: number;
+  commercial_campaign_id?: string;
+  commercial_campaign_discount?: number;
+  commercial_campaign_confirmed?: boolean;
+  commercial_campaign?: CommercialCampaign;
   rental_kind?: "normal" | "resident" | "institutional" | "frequent" | "school";
   rental_period?: "hour" | "day" | null;
   rental_hours?: number | null;

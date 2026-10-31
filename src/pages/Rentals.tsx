@@ -399,6 +399,7 @@ export function Rentals({ user }: { user: User }) {
               </div>
               <h3>{r.customer_ref}</h3>
               <p><b>{rentalMoney(r.charged_amount)}</b> · {r.rental_kind === "institutional" ? "Utilização institucional" : r.rental_kind === "resident" ? "Benefício de residente" : r.rental_kind === "frequent" ? "Cliente frequente" : r.rental_kind === "school" ? "Cartão Escolar Municipal" : "Multibanco"}</p>
+              {r.commercial_campaign&&<p className="notice"><b>{r.commercial_campaign.name}</b><br/>Desconto da campanha: {rentalMoney(Number(r.commercial_campaign_discount||0))}</p>}
               {r.rental_kind !== "institutional" && r.authorization_code && <small>Código de autorização: <b>{r.authorization_code}</b>{r.rental_kind === "frequent" && r.deposit_authorization ? ` · válido até ${new Date(r.deposit_authorization.expires_at).toLocaleDateString("pt-PT")}` : ""}</small>}
               {r.rental_kind !== "institutional" && <small>{r.rental_period === "day" ? "Período: 1 dia" : `Período: ${r.rental_hours || 1} ${(r.rental_hours || 1) === 1 ? "hora" : "horas"}`}</small>}
               {r.expected_amount !== undefined && <small>Valor comercial: {rentalMoney(r.expected_amount)}</small>}
@@ -489,6 +490,7 @@ export function Rentals({ user }: { user: User }) {
               <th>Estado</th>
               <th>Itens</th>
               <th>Valor</th>
+              <th>Campanha</th>
               <th>Origem</th>
               <th>Entrega</th>
               <th>Registado por</th>
@@ -508,6 +510,7 @@ export function Rentals({ user }: { user: User }) {
                   <td><Badge>{r.status}</Badge>{r.corrected_at && <small className="block-meta">Corrigido</small>}</td>
                   <td>{r.items.map((i) => i.bike?.code).join(", ")}</td>
                   <td>{rentalMoney(r.charged_amount)}</td>
+                  <td>{r.commercial_campaign?.name||"—"}</td>
                   <td>{r.start_kiosk?.name || "—"}</td>
                   <td>{returnKiosks(r).join(", ") || "—"}{r.status==="Concluído"&&returnKiosks(r).some((name)=>name!==r.start_kiosk?.name)&&<small className="block-meta">Entrega noutro quiosque</small>}</td>
                   <td>{r.started_by_user?.full_name || "—"}</td>
