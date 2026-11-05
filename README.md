@@ -1,5 +1,13 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
+## Versão 2.8.0
+
+- Novo menu **Logística e balanceamento** para os perfis Manutenção e Administrador.
+- Stock disponível por quiosque e tipologia, com atualização automática a cada minuto.
+- Alertas de rutura e limite operacional de cinco bicicletas por quiosque.
+- Recomendações automáticas de transferência sem colocar o quiosque de origem em risco.
+- Histórico recente de movimentos e percursos entre quiosques, sem acesso a dados pessoais dos clientes.
+
 ## Versão 2.7.1
 
 Correção da campanha de Halloween: válida durante os dias completos de **31 de outubro e 1 de novembro de 2026**.

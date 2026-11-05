@@ -182,6 +182,52 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         admin_management,
       });
     }
+    if (route === "/logistics/balance" && request.method === "GET") {
+      if (!["admin", "manutencao"].includes(ctx.user.role))
+        return err("Acesso reservado à logística e administração.", 403);
+      const url = new URL(request.url),
+        from = url.searchParams.get("from"),
+        to = url.searchParams.get("to"),
+        validDate = (value: string | null) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
+      if (!validDate(from) || !validDate(to) || (from && to && from > to))
+        return err("O período selecionado não é válido.");
+      const parameters = JSON.stringify({ p_from: from || null, p_to: to || null });
+      const [network, kiosks, bikes, equipmentTypes] = await Promise.all([
+        db(ctx, "rpc/rental_network_analytics", { method: "POST", body: parameters }),
+        db(ctx, "kiosks?active=eq.true&allows_rentals=eq.true&select=id,name&order=name"),
+        db(ctx, "bikes?active=eq.true&select=id,kiosk_id,status,asset_type"),
+        db(ctx, "equipment_types?active=eq.true&select=code,name,category&order=name"),
+      ]);
+      const typeByCode = new Map(equipmentTypes.map((item: any) => [String(item.code), item]));
+      const minimumStock = 5;
+      const stock = kiosks.map((kiosk: any) => {
+        const items = bikes.filter((bike: any) => bike.kiosk_id === kiosk.id && (typeByCode.get(String(bike.asset_type)) as any)?.category === "bicycle");
+        const available = items.filter((bike: any) => bike.status === "Disponível");
+        return {
+          id: kiosk.id,
+          name: kiosk.name,
+          available: available.length,
+          rented: items.filter((bike: any) => bike.status === "Alugada").length,
+          unavailable: items.filter((bike: any) => !["Disponível", "Alugada"].includes(bike.status)).length,
+          total: items.length,
+          gap_to_minimum: Math.max(0, minimumStock - available.length),
+          status: available.length === 0 ? "critical" : available.length < minimumStock ? "warning" : "ok",
+          by_type: equipmentTypes
+            .filter((type: any) => type.category === "bicycle")
+            .map((type: any) => ({
+              code: type.code,
+              name: type.name,
+              available: available.filter((bike: any) => bike.asset_type === type.code).length,
+            })),
+        };
+      });
+      return json({
+        generated_at: new Date().toISOString(),
+        minimum_stock: minimumStock,
+        stock,
+        network,
+      });
+    }
     if (route === "/bikes" && request.method === "GET") {
       const kiosks=await db(ctx,`kiosks?active=eq.true${ctx.user.role==='funcionario'?'&allows_rentals=eq.true':''}&select=*&order=name`);
       const kioskIds=kiosks.map((k:any)=>k.id);

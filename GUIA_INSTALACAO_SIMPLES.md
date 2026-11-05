@@ -238,6 +238,12 @@ Esta versão acrescenta o ícone de bicicleta com as cores da Parques Tejo e a c
 
 Num iPhone onde a aplicação já esteja guardada, remova o atalho antigo e volte a escolher **Partilhar → Adicionar ao ecrã principal** para o novo ícone aparecer imediatamente.
 
+# Atualização 2.8.0 — logística e balanceamento
+
+Esta versão não exige uma nova migração da base de dados. Depois de publicar os ficheiros, os perfis **Manutenção** e **Administrador** passam a ter o menu **Logística e balanceamento**.
+
+O ecrã apresenta o stock atual por quiosque e tipologia, alerta quando existem menos de cinco bicicletas disponíveis e recomenda transferências entre quiosques. A informação atualiza-se automaticamente a cada minuto e não dá acesso a dados pessoais dos clientes.
+
 # Atualização 2.7.1 — correção do fim de semana de Halloween
 
 Se já executou a migração 030 da versão 2.7.0, execute uma única vez:

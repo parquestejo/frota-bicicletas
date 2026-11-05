@@ -27,6 +27,7 @@ const EmailSettings = lazy(() => import("./EmailSettings").then((m) => ({ defaul
 const Catalog = lazy(() => import("./Catalog").then((m) => ({ default: m.Catalog })));
 const Customers = lazy(() => import("./Customers").then((m) => ({ default: m.Customers })));
 const Operations = lazy(() => import("./Operations").then((m) => ({ default: m.Operations })));
+const Logistics = lazy(() => import("./pages/Logistics").then((m) => ({ default: m.Logistics })));
 
 function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [username, setUsername] = useState("");
@@ -198,7 +199,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
       ["/fecho-diario", "Fecho diário"],
     );
   if (user.role !== "funcionario")
-    links.splice(links.length - 1, 0, ["/avarias", "Avarias e manutenção"]);
+    links.splice(links.length - 1, 0, ["/logistica", "Logística e balanceamento"], ["/avarias", "Avarias e manutenção"]);
   if (user.role === "admin")
     links.push(
       ["/relatorios", "Relatórios"],
@@ -288,6 +289,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
             }
           />
           <Route path="/comunicar-avaria" element={<FaultReport />} />
+          <Route path="/logistica" element={["admin", "manutencao"].includes(user.role) ? <Logistics /> : <Navigate to="/" />} />
           <Route
             path="/avarias"
             element={
