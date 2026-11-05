@@ -216,7 +216,7 @@ function AdminRentalCorrection({ rental, bikes, kiosks, onSaved }: { rental: Ren
     if (form.reason.trim().length < 5) return notify("Indique o motivo da correção.","error");
     setBusy(true); try {
       await patch(`/rentals/${rental.id}/correct`, { ...form, charged_amount:Number(form.charged_amount), started_at:new Date(form.started_at).toISOString(), returned_at:form.returned_at ? new Date(form.returned_at).toISOString() : null, items:form.items.map((item) => ({ ...item, returned_at:item.returned_at ? new Date(item.returned_at).toISOString() : null })), void:voidRental });
-      notify(voidRental ? "Aluguer anulado, mantendo o histórico." : "Aluguer corrigido.","success"); setOpen(false); onSaved();
+      notify(voidRental ? "Aluguer anulado, mantendo o histórico." : "Aluguer corrigido e localização da frota sincronizada.","success"); setOpen(false); onSaved();
     } catch(e) { notify((e as Error).message,"error"); } finally { setBusy(false); }
   }
   async function savePeriod() {

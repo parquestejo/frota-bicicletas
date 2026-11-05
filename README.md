@@ -1,5 +1,11 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
+## Versão 2.8.1
+
+- Corrige a localização da bicicleta na frota quando o administrador altera o quiosque de devolução de um aluguer concluído.
+- Repara de forma segura correções anteriores, sem substituir movimentos ou alugueres posteriores.
+- Regista a sincronização no histórico de estados da bicicleta.
+
 ## Versão 2.8.0
 
 - Novo menu **Logística e balanceamento** para os perfis Manutenção e Administrador.

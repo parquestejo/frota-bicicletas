@@ -238,6 +238,14 @@ Esta versão acrescenta o ícone de bicicleta com as cores da Parques Tejo e a c
 
 Num iPhone onde a aplicação já esteja guardada, remova o atalho antigo e volte a escolher **Partilhar → Adicionar ao ecrã principal** para o novo ícone aparecer imediatamente.
 
+# Atualização 2.8.1 — sincronização das correções de devolução
+
+Depois de publicar a versão 2.8.1, execute uma única vez:
+
+`supabase/migrations/032_sync_corrected_return_locations.sql`
+
+A migração corrige as futuras alterações ao quiosque de devolução e repara automaticamente os casos anteriores comprovados pelo histórico de auditoria, desde que a bicicleta não tenha tido movimentos posteriores.
+
 # Atualização 2.8.0 — logística e balanceamento
 
 Esta versão não exige uma nova migração da base de dados. Depois de publicar os ficheiros, os perfis **Manutenção** e **Administrador** passam a ter o menu **Logística e balanceamento**.
