@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { RentalNetworkAnalytics } from "../reportPdf";
 import { DateRange, useLoad } from "./shared";
+import { suggestedTypeTransfers } from "../domain";
 
 type Stock = {
   id: string;
@@ -11,7 +12,7 @@ type Stock = {
   total: number;
   gap_to_minimum: number;
   status: "critical" | "warning" | "ok";
-  by_type: { code: string; name: string; available: number }[];
+  by_type: { code: string; name: string; available: number; minimum: number }[];
 };
 
 type LogisticsData = {
@@ -21,35 +22,7 @@ type LogisticsData = {
   network: RentalNetworkAnalytics;
 };
 
-type Transfer = { from: string; to: string; quantity: number };
-
 const dateKey = (date: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Lisbon" }).format(date);
-
-function suggestedTransfers(stock: Stock[], minimum: number): Transfer[] {
-  if (stock.length < 2) return [];
-  const total = stock.reduce((sum, kiosk) => sum + kiosk.available, 0);
-  const target = Math.max(minimum, Math.floor(total / stock.length));
-  const donors = stock
-    .map((item) => ({ ...item, spare: Math.max(0, item.available - Math.max(minimum, target)) }))
-    .filter((item) => item.spare > 0)
-    .sort((a, b) => b.spare - a.spare);
-  const receivers = stock
-    .map((item) => ({ ...item, need: Math.max(0, target - item.available) }))
-    .filter((item) => item.need > 0)
-    .sort((a, b) => b.need - a.need);
-  const transfers: Transfer[] = [];
-  for (const receiver of receivers) {
-    for (const donor of donors) {
-      if (!receiver.need) break;
-      const quantity = Math.min(receiver.need, donor.spare);
-      if (!quantity) continue;
-      transfers.push({ from: donor.name, to: receiver.name, quantity });
-      donor.spare -= quantity;
-      receiver.need -= quantity;
-    }
-  }
-  return transfers;
-}
 
 export function Logistics() {
   const today = dateKey(new Date());
@@ -68,11 +41,13 @@ export function Logistics() {
   if (error) return <p className="error">Não foi possível carregar o balanceamento: {error}</p>;
   if (!data) return <p>A calcular o saldo da rede…</p>;
 
-  const transfers = suggestedTransfers(data.stock, data.minimum_stock);
+  const transfers = suggestedTypeTransfers(data.stock);
   const critical = data.stock.filter((item) => item.status === "critical");
   const warning = data.stock.filter((item) => item.status === "warning");
+  const ruptures = data.stock.flatMap((item) => item.by_type.filter((type) => type.available === 0).map((type) => `${type.name} em ${item.name}`));
+  const shortages = data.stock.flatMap((item) => item.by_type.filter((type) => type.available > 0 && type.available < type.minimum).map((type) => `${type.name} em ${item.name}`));
   const available = data.stock.reduce((sum, item) => sum + item.available, 0);
-  const statusLabel = critical.length ? "Intervenção imediata" : warning.length ? "Reequilíbrio necessário" : "Rede equilibrada";
+  const statusLabel = critical.length ? "Rutura de tipologia" : warning.length ? "Reequilíbrio necessário" : "Rede equilibrada";
 
   return <>
     <div className="title logistics-heading">
@@ -81,7 +56,7 @@ export function Logistics() {
     </div>
 
     <section className={`card logistics-alert logistics-${critical.length ? "critical" : warning.length ? "warning" : "ok"}`}>
-      <div><span className="logistics-kicker">Estado da rede</span><h2>{statusLabel}</h2><p>{critical.length ? `${critical.map((item) => item.name).join(", ")} sem bicicletas disponíveis.` : warning.length ? `${warning.map((item) => item.name).join(", ")} abaixo do limite operacional de ${data.minimum_stock}.` : `Todos os quiosques têm pelo menos ${data.minimum_stock} bicicletas disponíveis.`}</p></div>
+      <div><span className="logistics-kicker">Estado da rede</span><h2>{statusLabel}</h2><p>{critical.length ? `Sem ${ruptures.join("; sem ")}.` : warning.length ? `${shortages.length ? shortages.join("; ") : warning.map((item) => item.name).join(", ")} abaixo do nível operacional.` : "Todos os quiosques têm disponibilidade mínima em cada tipologia."}</p></div>
       <strong>{available}<small> disponíveis na rede</small></strong>
     </section>
 
@@ -89,14 +64,14 @@ export function Logistics() {
       {data.stock.map((item) => <section className={`card logistics-kiosk logistics-${item.status}`} key={item.id}>
         <div className="logistics-kiosk-title"><div><span className="logistics-status-dot"/><h2>{item.name}</h2></div><span>{item.status === "critical" ? "Crítico" : item.status === "warning" ? "Atenção" : "Normal"}</span></div>
         <div className="logistics-main-number"><b>{item.available}</b><span>bicicletas<br/>disponíveis</span></div>
-        <div className="logistics-type-list">{item.by_type.map((type) => <div key={type.code}><span>{type.name}</span><b>{type.available}</b></div>)}</div>
+        <div className="logistics-type-list">{item.by_type.map((type) => <div className={type.available === 0 ? "type-critical" : type.available < type.minimum ? "type-warning" : ""} key={type.code}><span>{type.name}</span><b>{type.available}{type.available === 0 && <small> Rutura</small>}</b></div>)}</div>
         <div className="logistics-secondary-numbers"><span>Alugadas <b>{item.rented}</b></span><span>Indisponíveis <b>{item.unavailable}</b></span><span>Total <b>{item.total}</b></span></div>
       </section>)}
     </div>
 
     <section className="card">
-      <div className="title compact-title"><div><h2>Ação recomendada</h2><p>Transferências calculadas sem deixar o quiosque de origem abaixo do limite operacional.</p></div></div>
-      {transfers.length ? <div className="logistics-actions">{transfers.map((transfer, index) => <div className="logistics-transfer" key={`${transfer.from}-${transfer.to}-${index}`}><b>{transfer.quantity}</b><span>{transfer.quantity === 1 ? "bicicleta" : "bicicletas"}</span><strong>{transfer.from} → {transfer.to}</strong></div>)}</div> : critical.length || warning.length ? <p className="error">Não existe neste momento excedente suficiente noutro quiosque para corrigir o desequilíbrio. É necessário recorrer ao armazém ou aguardar devoluções.</p> : <p className="success">Não é necessária qualquer transferência neste momento.</p>}
+      <div className="title compact-title"><div><h2>Ação recomendada</h2><p>Transferências por tipologia, sem criar uma nova rutura no quiosque de origem.</p></div></div>
+      {transfers.length ? <div className="logistics-actions">{transfers.map((transfer, index) => <div className="logistics-transfer" key={`${transfer.typeCode}-${transfer.from}-${transfer.to}-${index}`}><b>{transfer.quantity}</b><span>{transfer.typeName}</span><strong>{transfer.from} → {transfer.to}</strong></div>)}</div> : critical.length || warning.length ? <p className="error">Não existe excedente suficiente da tipologia em falta. É necessário recorrer ao armazém ou aguardar devoluções.</p> : <p className="success">Não é necessária qualquer transferência neste momento.</p>}
     </section>
 
     <section className="card">

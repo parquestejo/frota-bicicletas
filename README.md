@@ -1,5 +1,12 @@
 # Gestão da Frota de Bicicletas — Parques Tejo
 
+## Versão 2.8.2
+
+- O estado da rede passa a ser avaliado por tipologia e não apenas pelo total de bicicletas.
+- Um quiosque com zero bicicletas elétricas, convencionais ou infantis é assinalado como rutura.
+- As transferências recomendadas identificam a quantidade e a tipologia a deslocar.
+- O algoritmo equilibra cada tipologia sem criar uma nova rutura no quiosque de origem.
+
 ## Versão 2.8.1
 
 - Corrige a localização da bicicleta na frota quando o administrador altera o quiosque de devolução de um aluguer concluído.

@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {commercialCampaignDiscount,durationPrice,estimateImpact,gamificationDayPoints,gamificationLevel,returnSelectionAllowed} from "../src/domain";
+import {commercialCampaignDiscount,durationPrice,estimateImpact,gamificationDayPoints,gamificationLevel,returnSelectionAllowed,suggestedTypeTransfers} from "../src/domain";
 
 describe("regras operacionais",()=>{
   it("exige a devolução integral nos alugueres normais",()=>{
@@ -36,5 +36,15 @@ describe("regras operacionais",()=>{
     expect(gamificationLevel(99)).toBe("Iniciante");
     expect(gamificationLevel(100)).toBe("Pedalante");
     expect(gamificationLevel(750)).toBe("Embaixador");
+  });
+  it("recomenda o balanceamento por tipologia",()=>{
+    const stock=[
+      {name:"Torre",by_type:[{code:"electric",name:"Elétrica",available:0,minimum:2},{code:"conventional",name:"Convencional",available:2,minimum:2},{code:"child",name:"Infantil",available:4,minimum:1}]},
+      {name:"Algés",by_type:[{code:"electric",name:"Elétrica",available:8,minimum:2},{code:"conventional",name:"Convencional",available:7,minimum:2},{code:"child",name:"Infantil",available:4,minimum:1}]},
+    ];
+    expect(suggestedTypeTransfers(stock)).toEqual([
+      {from:"Algés",to:"Torre",typeCode:"electric",typeName:"Elétrica",quantity:4},
+      {from:"Algés",to:"Torre",typeCode:"conventional",typeName:"Convencional",quantity:2},
+    ]);
   });
 });

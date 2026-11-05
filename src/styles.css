@@ -179,6 +179,9 @@ textarea {
 .logistics-main-number span { color: var(--mid-gray); font-weight: 600; }
 .logistics-type-list { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .logistics-type-list > div, .logistics-secondary-numbers { display: flex; justify-content: space-between; gap: 1rem; padding: .65rem 0; }
+.logistics-type-list .type-critical { margin: 0 -.55rem; padding: .65rem .55rem; border-radius: 6px; background: #fdecec; color: #9d1c1c; }
+.logistics-type-list .type-warning { color: #8a5a08; }
+.logistics-type-list small { font-size: .65rem; text-transform: uppercase; }
 .logistics-secondary-numbers { flex-wrap: wrap; color: var(--mid-gray); font-size: .85rem; }
 .logistics-secondary-numbers b { color: var(--charcoal); }
 .logistics-actions { display: grid; gap: .75rem; }

@@ -238,6 +238,10 @@ Esta versão acrescenta o ícone de bicicleta com as cores da Parques Tejo e a c
 
 Num iPhone onde a aplicação já esteja guardada, remova o atalho antigo e volte a escolher **Partilhar → Adicionar ao ecrã principal** para o novo ícone aparecer imediatamente.
 
+# Atualização 2.8.2 — balanceamento por tipologia
+
+Esta versão não exige uma nova migração. Depois de publicar os ficheiros, a área **Logística e balanceamento** passa a detetar ruturas de elétricas, convencionais e infantis separadamente e recomenda transferências por tipologia.
+
 # Atualização 2.8.1 — sincronização das correções de devolução
 
 Depois de publicar a versão 2.8.1, execute uma única vez:

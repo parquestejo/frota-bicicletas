@@ -199,10 +199,20 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
         db(ctx, "equipment_types?active=eq.true&select=code,name,category&order=name"),
       ]);
       const typeByCode = new Map(equipmentTypes.map((item: any) => [String(item.code), item]));
+      const bicycleTypes = equipmentTypes.filter((type: any) => type.category === "bicycle" && bikes.some((bike: any) => bike.asset_type === type.code));
+      const minimumForType = (code: string) => ["electric", "conventional"].includes(code) ? 2 : 1;
       const minimumStock = 5;
       const stock = kiosks.map((kiosk: any) => {
         const items = bikes.filter((bike: any) => bike.kiosk_id === kiosk.id && (typeByCode.get(String(bike.asset_type)) as any)?.category === "bicycle");
         const available = items.filter((bike: any) => bike.status === "Disponível");
+        const byType = bicycleTypes.map((type: any) => ({
+          code: type.code,
+          name: type.name,
+          available: available.filter((bike: any) => bike.asset_type === type.code).length,
+          minimum: minimumForType(String(type.code)),
+        }));
+        const hasTypeRupture = byType.some((type: any) => type.available === 0);
+        const hasTypeWarning = byType.some((type: any) => type.available < type.minimum);
         return {
           id: kiosk.id,
           name: kiosk.name,
@@ -211,14 +221,8 @@ export async function handleInventoryRoutes(ctx: Ctx, request: Request, route: s
           unavailable: items.filter((bike: any) => !["Disponível", "Alugada"].includes(bike.status)).length,
           total: items.length,
           gap_to_minimum: Math.max(0, minimumStock - available.length),
-          status: available.length === 0 ? "critical" : available.length < minimumStock ? "warning" : "ok",
-          by_type: equipmentTypes
-            .filter((type: any) => type.category === "bicycle")
-            .map((type: any) => ({
-              code: type.code,
-              name: type.name,
-              available: available.filter((bike: any) => bike.asset_type === type.code).length,
-            })),
+          status: available.length === 0 || hasTypeRupture ? "critical" : available.length < minimumStock || hasTypeWarning ? "warning" : "ok",
+          by_type: byType,
         };
       });
       return json({

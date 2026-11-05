@@ -25,5 +25,20 @@ export function estimateImpact(hours:number,bicycles:number){
 }
 export function gamificationDayPoints(distanceKm:number){return 10+Math.min(30,Math.max(0,Math.floor(Number(distanceKm)||0)))}
 export function gamificationLevel(points:number){const value=Math.max(0,Number(points)||0);return value>=750?"Embaixador":value>=300?"Explorador":value>=100?"Pedalante":"Iniciante"}
+export type BalanceStock={name:string;by_type:{code:string;name:string;available:number;minimum:number}[]};
+export type BalanceTransfer={from:string;to:string;typeCode:string;typeName:string;quantity:number};
+export function suggestedTypeTransfers(stock:BalanceStock[]):BalanceTransfer[]{
+  if(stock.length<2)return[];
+  const typeCodes=[...new Set(stock.flatMap(kiosk=>kiosk.by_type.map(type=>type.code)))];
+  const transfers:BalanceTransfer[]=[];
+  for(const code of typeCodes){
+    const rows=stock.map(kiosk=>{const type=kiosk.by_type.find(item=>item.code===code);return{name:kiosk.name,typeCode:code,typeName:type?.name||code,available:type?.available||0,minimum:type?.minimum||1}});
+    const total=rows.reduce((sum,row)=>sum+row.available,0),target=Math.floor(total/rows.length);
+    const donors=rows.map(row=>({...row,spare:Math.max(0,row.available-Math.max(row.minimum,target))})).filter(row=>row.spare>0).sort((a,b)=>b.spare-a.spare);
+    const receivers=rows.map(row=>({...row,need:Math.max(0,Math.max(row.minimum,target)-row.available)})).filter(row=>row.need>0).sort((a,b)=>b.need-a.need);
+    for(const receiver of receivers)for(const donor of donors){if(!receiver.need)break;const quantity=Math.min(receiver.need,donor.spare);if(!quantity)continue;transfers.push({from:donor.name,to:receiver.name,typeCode:code,typeName:receiver.typeName,quantity});donor.spare-=quantity;receiver.need-=quantity;}
+  }
+  return transfers;
+}
 export function closeFault(b:SimBike,status:'Disponível'|'Indisponível'|'Em manutenção'){return{...b,status}}
 export function audit(action:string,userId:string,entity:string){return{action,userId,entity,at:new Date().toISOString()}}
